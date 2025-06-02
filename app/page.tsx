@@ -4,9 +4,9 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { Camera, CheckCircle, XCircle, ArrowLeft, Bed, Sofa, Flame, Check } from "lucide-react"
 import Image from "next/image"
-import { getChecklist, getFotoTypes, seleccionarFotosConPesos } from "@/lib/checklist-loader"
 
 const HABITACIONES = [
   // Planta Baja - Blue
@@ -63,6 +63,113 @@ const HABITACIONES = [
     color: "bg-gray-600 hover:bg-gray-700 text-white",
     tipo: "escalera",
   },
+]
+
+// Tipos de fotos que se pueden pedir
+const TIPOS_FOTOS = [
+  {
+    id: "cama",
+    titulo: "Cama completa",
+    descripcion:
+      "Mostrá la cama completa con sábana, fundas de almohada, funda del acolchado alineada, pie de cama con arrugas y manta polar en mesita de luz",
+    validacionIA:
+      "cama bien hecha con sábana, fundas de almohada, funda del acolchado alineada, pie de cama con arrugas y manta polar visible en mesita de luz",
+    pasoRelacionado: 6, // ID del paso de tender la cama
+  },
+  {
+    id: "cubiertos",
+    titulo: "Cubiertos completos",
+    descripcion: "Mostrá todos los cubiertos: 2 tenedores, 2 cuchillos, 2 cucharas, 2 cucharitas, 1 cuchillo de cocina",
+    validacionIA: "2 tenedores, 2 cuchillos, 2 cucharas, 2 cucharitas y 1 cuchillo de cocina limpios",
+    pasoRelacionado: 11,
+  },
+  {
+    id: "basura",
+    titulo: "Cesto de basura",
+    descripcion: "Mostrá el cesto de basura vacío con bolsa nueva puesta y 2 bolsas de repuesto en el fondo",
+    validacionIA: "cesto vacío con bolsa nueva instalada y 2 bolsas de repuesto visibles en el fondo",
+    pasoRelacionado: 20, // ID del paso de basura
+  },
+]
+
+// Checklist para habitaciones normales
+const CHECKLIST_HABITACIONES = [
+  { id: 1, categoria: "Inspección inicial", texto: "Tocar la puerta y entrar, verificar si hubo check-out" },
+  {
+    id: 2,
+    categoria: "Revisión para lavar",
+    texto: "Revisar si hace falta lavar: cortinas, fundas decorativas, funda de futón, mantas o plaids",
+  },
+  {
+    id: 3,
+    categoria: "Revisión para lavar",
+    texto: "Si hubo huéspedes: sábanas, fundas de almohadas, funda del edredón, toallas",
+  },
+  {
+    id: 4,
+    categoria: "Dormitorio",
+    texto: "Lavar blanquería: Separar blancos y colores, Poner a lavar, Se puede juntar con otras habitaciones",
+  },
+  {
+    id: 6,
+    categoria: "Tender la cama",
+    texto:
+      "Tender la cama: Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz",
+  },
+  { id: 7, categoria: "Baño", texto: "1 toalla grande + 1 de mano por huésped" },
+  { id: 8, categoria: "Baño", texto: "Papel higiénico: 1 usado + 1 nuevo" },
+  {
+    id: 9,
+    categoria: "Baño",
+    texto:
+      "Botellas: jabón líquido en bacha, jabón líquido en ducha, shampoo (revisar que no estén con menos de la mitad)",
+  },
+  { id: 10, categoria: "Baño", texto: "Limpiar: ducha, bacha, inodoro, espejo, mampara" },
+  {
+    id: 11,
+    categoria: "Cocina y utensilios",
+    texto: "Verificar cubiertos: 2 tenedores, 2 cuchillos, 2 cucharas, 2 cucharitas, 1 cuchillo de cocina",
+  },
+  {
+    id: 12,
+    categoria: "Cocina y utensilios",
+    texto: "Verificar vajilla: 2 platos grandes, 2 platos hondos, 2 platos postre, 2 vasos, 2 tazas",
+  },
+  { id: 13, categoria: "Cocina y utensilios", texto: "Verificar utensilios de cocina: 1 olla o sartén, 1 espátula" },
+  {
+    id: 14,
+    categoria: "Cocina y utensilios",
+    texto: "Condimentos: 3 bolsitas de sal, 3 de azúcar, 3 de edulcorante en frascos (uno por tipo)",
+  },
+  { id: 15, categoria: "Cocina y utensilios", texto: "Cafetera: revisar que esté vacía adentro" },
+  { id: 16, categoria: "Limpieza general", texto: "Limpiar vidrios si están marcados" },
+  { id: 17, categoria: "Limpieza general", texto: "Limpiar mesas, mesitas, estantes" },
+  { id: 18, categoria: "Limpieza general", texto: "Revisar y limpiar horno, microondas, heladera por dentro" },
+  { id: 19, categoria: "Limpieza general", texto: "Aspirar y trapear piso" },
+  { id: 20, categoria: "Basura y cierre", texto: "Tirar la basura de todos los tachos" },
+  { id: 21, categoria: "Basura y cierre", texto: "Poner 1 bolsa nueva y dejar 2 bolsas de repuesto en el fondo" },
+  { id: 22, categoria: "Basura y cierre", texto: "Apagar luces y aire" },
+  { id: 23, categoria: "Basura y cierre", texto: "Cerrar ventanas y puertas" },
+]
+
+// Checklist simplificado para parrilla
+const CHECKLIST_PARRILLA = [
+  {
+    id: 1,
+    categoria: "Verificación",
+    texto:
+      "Verificar la parrilla: La rejilla tiene que estar limpia, Tirar cenizas, Pasar un trapo por la mesa y la bacha, Todas las sillas deben estar alrededor de la mesa, Barrer el piso si es necesario",
+  },
+]
+
+// Checklist para escalera/hall
+const CHECKLIST_ESCALERA = [
+  { id: 1, categoria: "Limpieza", texto: "Aspirar escalones" },
+  { id: 2, categoria: "Limpieza", texto: "Limpiar barandas" },
+  { id: 3, categoria: "Paquetes", texto: "Chequear si quedaron nuevos paquetes de Mercado Libre" },
+  { id: 4, categoria: "Paquetes", texto: "Si hay paquetes, abrir y tratar de distribuir" },
+  { id: 5, categoria: "Comunicación", texto: "Escribir a Ivan o su asistente las cosas que faltan" },
+  { id: 6, categoria: "Comunicación", texto: "Ofrecer de comprar los items faltantes si es posible" },
 ]
 
 // Simulación de validación IA con análisis detallado
@@ -145,23 +252,42 @@ interface SesionLimpieza {
 }
 
 export default function LimpiezaPage() {
-  const [habitacionSeleccionada, setHabitacionSeleccionada] = useState<any>(null)
+  const [habitacionSeleccionada, setHabitacionSeleccionada] = useState(null)
   const [pasoActual, setPasoActual] = useState(0)
-  const [datosLimpieza, setDatosLimpieza] = useState<StepData[]>([])
-  const [horaInicioLimpieza, setHoraInicioLimpieza] = useState<Date | null>(null)
+  const [datosLimpieza, setDatosLimpieza] = useState([])
+  const [horaInicioLimpieza, setHoraInicioLimpieza] = useState(null)
   const [validandoFoto, setValidandoFoto] = useState(false)
   const [esperandoCorreccion, setEsperandoCorreccion] = useState(false)
-  const [sesionActual, setSesionActual] = useState<SesionLimpieza | null>(null)
+  const [sesionActual, setSesionActual] = useState(null)
   const [fotoRequerida, setFotoRequerida] = useState(null)
 
-  const CHECKLIST_STEPS = habitacionSeleccionada ? getChecklist(habitacionSeleccionada.tipo) : []
-  const TIPOS_FOTOS = getFotoTypes()
+  // Obtener checklist según tipo de habitación
+  const obtenerChecklist = (tipo: string) => {
+    switch (tipo) {
+      case "parrilla":
+        return CHECKLIST_PARRILLA
+      case "escalera":
+        return CHECKLIST_ESCALERA
+      default:
+        return CHECKLIST_HABITACIONES
+    }
+  }
+
+  const CHECKLIST_STEPS = habitacionSeleccionada ? obtenerChecklist(habitacionSeleccionada.tipo) : []
 
   // Inicializar sesión si no existe
   const inicializarSesion = () => {
     if (!sesionActual) {
-      // Usar la nueva función de selección con pesos
-      const fotosSeleccionadas = seleccionarFotosConPesos(habitacionSeleccionada?.tipo || "habitacion", 1)
+      // Seleccionar solo 1 foto por sesión (promedio una por habitación)
+      const numFotos = 1
+      const fotosDisponibles = [...TIPOS_FOTOS]
+      const fotosSeleccionadas = []
+
+      for (let i = 0; i < numFotos; i++) {
+        const indiceAleatorio = Math.floor(Math.random() * fotosDisponibles.length)
+        fotosSeleccionadas.push(fotosDisponibles[indiceAleatorio].id)
+        fotosDisponibles.splice(indiceAleatorio, 1)
+      }
 
       const nuevaSesion: SesionLimpieza = {
         id: Date.now().toString(),
@@ -196,14 +322,12 @@ export default function LimpiezaPage() {
     }
 
     // Inicializar primer paso
-    const checklist = getChecklist(habitacion.tipo)
-    if (checklist.length > 0) {
-      const nuevoDato: StepData = {
-        id: checklist[0].id,
-        horaInicio: new Date(),
-      }
-      setDatosLimpieza([nuevoDato])
+    const checklist = obtenerChecklist(habitacion.tipo)
+    const nuevoDato: StepData = {
+      id: checklist[0].id,
+      horaInicio: new Date(),
     }
+    setDatosLimpieza([nuevoDato])
   }
 
   const verificarSiFotoRequerida = (pasoId: number) => {
@@ -212,7 +336,7 @@ export default function LimpiezaPage() {
     // Buscar si este paso requiere una foto que esté seleccionada para la sesión
     const tipoFoto = TIPOS_FOTOS.find(
       (tipo) =>
-        tipo.paso_relacionado === pasoId &&
+        tipo.pasoRelacionado === pasoId &&
         sesionActual.fotosSeleccionadas.includes(tipo.id) &&
         !sesionActual.fotosPedidas.includes(tipo.id),
     )
@@ -221,10 +345,6 @@ export default function LimpiezaPage() {
   }
 
   const completarPaso = async (foto?: File) => {
-    if (!CHECKLIST_STEPS || CHECKLIST_STEPS.length === 0 || pasoActual >= CHECKLIST_STEPS.length) {
-      return
-    }
-
     const step = CHECKLIST_STEPS[pasoActual]
     const ahora = new Date()
     const tipoFotoRequerida = verificarSiFotoRequerida(step.id)
@@ -234,7 +354,7 @@ export default function LimpiezaPage() {
 
     if (foto && tipoFotoRequerida) {
       setValidandoFoto(true)
-      validacion = await validarFotoConIA(foto, tipoFotoRequerida.validacion_ia, tipoFotoRequerida)
+      validacion = await validarFotoConIA(foto, tipoFotoRequerida.validacionIA, tipoFotoRequerida)
       tipoFoto = tipoFotoRequerida.id
       setValidandoFoto(false)
 
@@ -252,14 +372,13 @@ export default function LimpiezaPage() {
       }
     }
 
-    const tiempoTranscurrido =
-      pasoActual > 0 && datosLimpieza[pasoActual] ? ahora.getTime() - datosLimpieza[pasoActual].horaInicio.getTime() : 0
+    const tiempoTranscurrido = pasoActual > 0 ? ahora.getTime() - datosLimpieza[pasoActual].horaInicio.getTime() : 0
 
     // Detectar si hay más de 1 hora entre pasos (crear nueva limpieza)
     const unaHoraEnMs = 60 * 60 * 1000 // 1 hora en milisegundos
     if (pasoActual > 0 && tiempoTranscurrido > unaHoraEnMs) {
       // Guardar limpieza actual como incompleta
-      await guardarLimpiezaIncompleta(datosLimpieza)
+      guardarLimpiezaIncompleta(datosLimpieza)
 
       // Reiniciar nueva limpieza
       const nuevoDato: StepData = {
@@ -272,15 +391,13 @@ export default function LimpiezaPage() {
     }
 
     const datosActualizados = [...datosLimpieza]
-    if (datosActualizados[pasoActual]) {
-      datosActualizados[pasoActual] = {
-        ...datosActualizados[pasoActual],
-        horaCompletado: ahora,
-        tiempoTranscurrido,
-        foto: foto ? URL.createObjectURL(foto) : undefined,
-        validacionIA: validacion,
-        tipoFoto,
-      }
+    datosActualizados[pasoActual] = {
+      ...datosActualizados[pasoActual],
+      horaCompletado: ahora,
+      tiempoTranscurrido,
+      foto: foto ? URL.createObjectURL(foto) : undefined,
+      validacionIA: validacion,
+      tipoFoto,
     }
 
     setDatosLimpieza(datosActualizados)
@@ -296,18 +413,16 @@ export default function LimpiezaPage() {
       setPasoActual(pasoActual + 1)
     } else {
       // Limpieza completada
-      await guardarLimpiezaCompleta(datosActualizados)
+      guardarLimpiezaCompleta(datosActualizados)
     }
   }
 
   const confirmarCorreccion = () => {
     setEsperandoCorreccion(false)
     const datosActualizados = [...datosLimpieza]
-    if (datosActualizados[pasoActual]) {
-      datosActualizados[pasoActual] = {
-        ...datosActualizados[pasoActual],
-        corregido: true,
-      }
+    datosActualizados[pasoActual] = {
+      ...datosActualizados[pasoActual],
+      corregido: true,
     }
     setDatosLimpieza(datosActualizados)
     setFotoRequerida(null)
@@ -317,72 +432,48 @@ export default function LimpiezaPage() {
   const ignorarCorreccion = () => {
     setEsperandoCorreccion(false)
     const datosActualizados = [...datosLimpieza]
-    if (datosActualizados[pasoActual]) {
-      datosActualizados[pasoActual] = {
-        ...datosActualizados[pasoActual],
-        ignorado: true,
-      }
+    datosActualizados[pasoActual] = {
+      ...datosActualizados[pasoActual],
+      ignorado: true,
     }
     setDatosLimpieza(datosActualizados)
     setFotoRequerida(null)
     completarPaso()
   }
 
-  const guardarLimpiezaIncompleta = async (datos: StepData[]) => {
-    if (!habitacionSeleccionada || !horaInicioLimpieza) return
-
-    const limpiezaData = {
+  const guardarLimpiezaIncompleta = (datos: StepData[]) => {
+    const limpiezaIncompleta = {
+      id: Date.now(),
       habitacion: habitacionSeleccionada.nombre,
       tipo: habitacionSeleccionada.tipo,
-      horaInicio: horaInicioLimpieza.toISOString(),
-      horaFin: new Date().toISOString(),
-      pasos: datos.map((paso) => ({
-        ...paso,
-        horaInicio: paso.horaInicio.toISOString(),
-        horaCompletado: paso.horaCompletado?.toISOString(),
-      })),
+      horaInicio: horaInicioLimpieza,
+      horaFin: new Date(),
+      pasos: datos,
       sesionId: sesionActual?.id,
       completa: false,
       razon: "Pausa larga detectada (más de 1 hora)",
     }
 
-    try {
-      await fetch("/api/limpiezas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(limpiezaData),
-      })
-    } catch (error) {
-      console.error("Error saving limpieza:", error)
-    }
+    const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]")
+    limpiezasGuardadas.push(limpiezaIncompleta)
+    localStorage.setItem("limpiezas", JSON.stringify(limpiezasGuardadas))
   }
 
-  const guardarLimpiezaCompleta = async (datos: StepData[]) => {
-    if (!habitacionSeleccionada || !horaInicioLimpieza) return
-
-    const limpiezaData = {
+  const guardarLimpiezaCompleta = (datos: StepData[]) => {
+    const limpiezaCompleta = {
+      id: Date.now(),
       habitacion: habitacionSeleccionada.nombre,
       tipo: habitacionSeleccionada.tipo,
-      horaInicio: horaInicioLimpieza.toISOString(),
-      horaFin: new Date().toISOString(),
-      pasos: datos.map((paso) => ({
-        ...paso,
-        horaInicio: paso.horaInicio.toISOString(),
-        horaCompletado: paso.horaCompletado?.toISOString(),
-      })),
+      horaInicio: horaInicioLimpieza,
+      horaFin: new Date(),
+      pasos: datos,
       sesionId: sesionActual?.id,
       completa: true,
     }
 
-    try {
-      await fetch("/api/limpiezas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(limpiezaData),
-      })
-    } catch (error) {
-      console.error("Error saving limpieza:", error)
-    }
+    const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]")
+    limpiezasGuardadas.push(limpiezaCompleta)
+    localStorage.setItem("limpiezas", JSON.stringify(limpiezasGuardadas))
 
     // Resetear para nueva limpieza
     setHabitacionSeleccionada(null)
@@ -405,8 +496,8 @@ export default function LimpiezaPage() {
   )
 
   // Verificar si se requiere foto para el paso actual
-  const stepActual = CHECKLIST_STEPS && CHECKLIST_STEPS.length > 0 ? CHECKLIST_STEPS[pasoActual] : null
-  const tipoFotoRequerida = stepActual ? verificarSiFotoRequerida(stepActual.id) : null
+  const stepActual = CHECKLIST_STEPS[pasoActual]
+  const tipoFotoRequerida = verificarSiFotoRequerida(stepActual?.id)
   const validacionActual = datosLimpieza[pasoActual]?.validacionIA
 
   if (!habitacionSeleccionada) {
@@ -425,7 +516,7 @@ export default function LimpiezaPage() {
                   <div className="grid grid-cols-2 gap-3">
                     {habitaciones.map((habitacion) => {
                       const IconoHabitacion = habitacion.icono
-                      const yaLimpiada = sesionActual?.habitacionesLimpiadas?.includes(habitacion.nombre) || false
+                      const yaLimpiada = sesionActual?.habitacionesLimpiadas.includes(habitacion.nombre)
                       const isDisabled = habitacion.disabled
 
                       return (
@@ -497,22 +588,6 @@ export default function LimpiezaPage() {
     )
   }
 
-  // Safety check for stepActual
-  if (!stepActual) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
-        <Card className="max-w-md border-0 shadow-lg">
-          <CardContent className="text-center p-8">
-            <p className="text-gray-600">Error: No se pudo cargar el paso actual</p>
-            <Button onClick={() => setHabitacionSeleccionada(null)} className="w-full mt-4">
-              Volver al menú
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-md mx-auto">
@@ -563,12 +638,11 @@ export default function LimpiezaPage() {
         {/* Paso actual */}
         <Card className="border-0 shadow-lg">
           <CardHeader>
-            <div className="flex items-center justify-between"></div>
+            <div className="flex items-center justify-between">
+              <Badge variant="secondary">{stepActual.categoria}</Badge>
+            </div>
             <CardTitle className="text-lg">
-              {stepActual.texto &&
-              stepActual.texto.includes(":") &&
-              stepActual.texto.split(":")[1] &&
-              stepActual.texto.split(":")[1].includes(",") ? (
+              {stepActual.texto.includes(":") && stepActual.texto.split(":")[1].includes(",") ? (
                 <div>
                   <div className="mb-2">{stepActual.texto.split(":")[0]}:</div>
                   <ul className="list-disc list-inside space-y-1 text-base font-normal">
@@ -583,16 +657,7 @@ export default function LimpiezaPage() {
                   </ul>
                 </div>
               ) : (
-                <div>
-                  <div className="mb-2">{stepActual.texto || "Paso sin descripción"}</div>
-                  {tipoFotoRequerida && (
-                    <ul className="list-disc list-inside space-y-1 text-base font-normal text-gray-600 mt-2">
-                      {tipoFotoRequerida.descripcion.split(",").map((item, index) => (
-                        <li key={index}>{item.trim()}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                stepActual.texto
               )}
             </CardTitle>
           </CardHeader>
@@ -601,17 +666,10 @@ export default function LimpiezaPage() {
               <div className="space-y-3">
                 <label className="block">
                   <div className="border-2 border-dashed border-yellow-400 rounded-lg p-6 text-center cursor-pointer hover:border-yellow-500 transition-colors bg-yellow-50">
-                    <Camera className="w-8 h-8 mx-auto mb-2 text-yellow-600" />
-                    <p className="text-sm text-yellow-800 font-medium">
-                      {tipoFotoRequerida.id === "cama" &&
-                        "Toca para sacar la foto de cama completa, para que se vean las sábanas puestas"}
-                      {tipoFotoRequerida.id === "cubiertos" &&
-                        "Toca para sacar la foto de todos los cubiertos ordenados"}
-                      {tipoFotoRequerida.id === "basura" &&
-                        "Toca para sacar la foto del cesto con bolsa nueva y repuestos"}
-                      {tipoFotoRequerida.id === "cafetera" &&
-                        "Toca para sacar la foto del interior vacío de la cafetera"}
-                    </p>
+                    <Camera className="w-8 h-8 mx-auto mb-3 text-yellow-600" />
+                    <h4 className="font-medium text-yellow-800 mb-2">{tipoFotoRequerida.titulo}</h4>
+                    <p className="text-sm text-yellow-700 mb-3">{tipoFotoRequerida.descripcion}</p>
+                    <p className="text-sm text-yellow-800 font-medium">Toca para tomar la foto requerida</p>
                     <Input
                       type="file"
                       accept="image/*"
