@@ -15,7 +15,6 @@ services:
       - /app/node_modules
     depends_on:
       - mongo
-      - nginx
     command: npm run dev
 
   mongo:

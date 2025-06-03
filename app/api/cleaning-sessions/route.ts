@@ -1,27 +1,22 @@
 import { NextResponse } from 'next/server';
-import { saveCleaningSession } from '@/lib/cleaningSessions';
+import { DatabaseService } from '@/lib/database';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: Request) {
   try {
     const data = await request.json();
     
-    // In a real implementation, you would get the D1 database from the environment
-    // const db = (process.env as any).DB as D1Database;
+    const session = await DatabaseService.createSession({
+      id: uuidv4(),
+      cleanerId: 'default',
+      roomType: data.roomName,
+      startTime: new Date(data.startTime),
+      endTime: new Date(data.endTime),
+      status: 'completed',
+      notes: `Completed ${data.stepsCompleted}/${data.totalSteps} steps in ${data.durationMinutes} minutes`
+    });
     
-    // For now, we'll just return a success response
-    console.log('Would save cleaning session:', data);
-    
-    // Uncomment this when D1 is set up:
-    // const session = await saveCleaningSession(db, {
-    //   roomName: data.roomName,
-    //   startTime: new Date(data.startTime),
-    //   endTime: new Date(data.endTime),
-    //   stepsCompleted: data.stepsCompleted,
-    //   totalSteps: data.totalSteps,
-    //   durationMinutes: data.durationMinutes
-    // });
-    
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, session });
   } catch (error) {
     console.error('Error saving cleaning session:', error);
     return NextResponse.json(

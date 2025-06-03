@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { format, isToday, isYesterday, isThisYear } from 'date-fns';
-import { es } from 'date-fns/locale';
+// Using built-in Date methods instead of date-fns
 
 interface PhotoItem {
   key: string;
@@ -27,15 +26,23 @@ const formatDate = (date: Date): string => {
     return `Hace ${hours} h ${minutes} m`;
   }
   
-  if (isYesterday(date)) {
-    return `Ayer ${format(date, 'HH:mm')}`;
+  // Check if yesterday
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `Ayer ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   }
   
-  if (isThisYear(date)) {
-    return format(date, 'd MMMM, HH:mm', { locale: es });
+  // Check if this year
+  if (date.getFullYear() === now.getFullYear()) {
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return `${date.getDate()} ${months[date.getMonth()]}, ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   }
   
-  return format(date, 'd MMMM, yyyy', { locale: es });
+  const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  return `${date.getDate()} ${months[date.getMonth()]}, ${date.getFullYear()}`;
 };
 
 export default function PhotosPage() {

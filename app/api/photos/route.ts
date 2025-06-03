@@ -1,41 +1,20 @@
 import { NextResponse } from 'next/server';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import r2Config from '@/config/r2.config';
+import { DatabaseService } from '@/lib/database';
 
-// Initialize S3 client
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: r2Config.endpoint,
-  credentials: {
-    accessKeyId: r2Config.accessKeyId || '',
-    secretAccessKey: r2Config.secretAccessKey || '',
-  },
-});
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // List objects in the R2 bucket
-    const command = new ListObjectsV2Command({
-      Bucket: r2Config.bucketName,
-    });
-
-    const response = await s3Client.send(command);
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
     
-    if (!response.Contents) {
-      return NextResponse.json({ photos: [] });
+    if (sessionId) {
+      // Get photos for a specific session
+      const photos = await DatabaseService.getPhotosBySession(sessionId);
+      return NextResponse.json({ photos });
+    } else {
+      // Get all photos (could be paginated in the future)
+      const photos = await DatabaseService.getPhotosBySession(''); // Empty string gets all photos
+      return NextResponse.json({ photos });
     }
-
-    // Create public URLs for each photo
-    const photos = response.Contents
-      .filter(item => item.Key && item.LastModified) // Filter out any undefined items
-      .map(item => ({
-        key: item.Key!,
-        lastModified: item.LastModified!.toISOString(),
-        size: item.Size || 0,
-        url: `${r2Config.publicBaseUrl}/${encodeURIComponent(item.Key!)}`,
-      }));
-
-    return NextResponse.json({ photos });
   } catch (error) {
     console.error('Error listing photos:', error);
     return NextResponse.json(

@@ -89,6 +89,10 @@ export class DatabaseService {
 
   static async getPhotosBySession(sessionId: string): Promise<Photo[]> {
     const collection = await getCollection<Photo>('photos');
+    if (sessionId === '') {
+      // Return all photos
+      return await collection.find({}).sort({ uploadedAt: -1 }).toArray();
+    }
     return await collection.find({ sessionId }).toArray();
   }
 

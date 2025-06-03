@@ -1,28 +1,28 @@
 import { NextResponse } from 'next/server';
-import { getTodaysCleaningStats } from '@/lib/cleaningSessions';
+import { DatabaseService } from '@/lib/database';
 
 export async function GET() {
   try {
-    // In a real implementation, you would get the D1 database from the environment
-    // const db = (process.env as any).DB as D1Database;
-    // For now, we'll return mock data
+    const stats = await DatabaseService.getSessionStats();
+    const sessions = await DatabaseService.getAllSessions();
     
-    // Mock data - replace with actual database call
-    const mockData = {
-      totalSpaces: 3,
-      totalTimeMinutes: 135, // 2h 15m
-      lastCleaned: new Date().toISOString()
-    };
+    // Calculate total time from all sessions
+    const totalTimeMinutes = sessions.reduce((total, session) => {
+      if (session.startTime && session.endTime) {
+        const duration = Math.round((session.endTime.getTime() - session.startTime.getTime()) / (1000 * 60));
+        return total + duration;
+      }
+      return total;
+    }, 0);
     
-    return NextResponse.json(mockData);
+    // Get last cleaned session
+    const lastCleanedSession = sessions.length > 0 ? sessions[0] : null;
     
-    // Uncomment this when D1 is set up:
-    // const stats = await getTodaysCleaningStats(db);
-    // return NextResponse.json({
-    //   spacesCleaned: stats.totalSpaces,
-    //   totalTimeMinutes: stats.totalTimeMinutes,
-    //   lastCleaned: stats.lastCleaned?.toISOString() || null
-    // });
+    return NextResponse.json({
+      totalSpaces: stats.completed,
+      totalTimeMinutes,
+      lastCleaned: lastCleanedSession?.endTime?.toISOString() || null
+    });
   } catch (error) {
     console.error('Error fetching cleaning stats:', error);
     return NextResponse.json(

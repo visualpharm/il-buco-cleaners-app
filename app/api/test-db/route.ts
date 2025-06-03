@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getD1Client } from '@/lib/d1';
+import { connectToDatabase } from '@/lib/mongodb';
 
 export async function GET() {
   try {
-    const d1 = getD1Client();
+    const db = await connectToDatabase();
     
-    // Test the database connection with a simple query
-    const result = await d1.query('SELECT name FROM sqlite_master WHERE type = ?', ['table']);
+    // Test the database connection by listing collections
+    const collections = await db.listCollections().toArray();
     
     return NextResponse.json({
       success: true,
-      tables: result.results || [],
-      meta: result.meta
+      message: 'MongoDB connection successful',
+      collections: collections.map(c => c.name)
     });
   } catch (error) {
     console.error('Database test error:', error);
