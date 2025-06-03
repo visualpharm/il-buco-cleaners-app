@@ -427,21 +427,6 @@ export default function VanishPage() {
           </div>
         </div>
 
-        {/* Enlace rápido al checklist */}
-        <Card className="mb-6 bg-blue-50 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-blue-900">Acceso Rápido</h3>
-                <p className="text-sm text-blue-700">Ir al checklist de limpieza para el personal</p>
-              </div>
-              <Button onClick={() => window.open("/", "_blank")} className="bg-blue-600 hover:bg-blue-700">
-                🧹 Abrir Checklist de Limpiador
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Estadísticas generales */}
         <div className="grid grid-cols-4 gap-4 mb-6">
           <Card>

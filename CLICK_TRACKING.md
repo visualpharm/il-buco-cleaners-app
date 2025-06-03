@@ -43,25 +43,25 @@ The click tracking system allows you to track user interactions on your website,
 ### Installation
 
 1. Install dependencies:
-   ```bash
+   \`\`\`bash
    npm install
-   ```
+   \`\`\`
 
 2. Set up environment variables:
-   ```bash
+   \`\`\`bash
    cp .env.example .env
    # Update the variables in .env
-   ```
+   \`\`\`
 
 3. Run database migrations:
-   ```bash
+   \`\`\`bash
    npx wrangler d1 migrations apply ilbuco-cleaning-db --local
-   ```
+   \`\`\`
 
 4. Start the development server:
-   ```bash
+   \`\`\`bash
    npm run dev
-   ```
+   \`\`\`
 
 ## Usage
 
@@ -69,13 +69,13 @@ The click tracking system allows you to track user interactions on your website,
 
 Add the `data-track` attribute to any HTML element you want to track:
 
-```html
+\`\`\`html
 <button data-track="cta-button">Click me</button>
-```
+\`\`\`
 
 Or use the `useClickTracker` hook in your React components:
 
-```tsx
+\`\`\`tsx
 import { useClickTracker } from '@/hooks/useClickTracker';
 
 function MyComponent() {
@@ -85,7 +85,7 @@ function MyComponent() {
     <button ref={trackElement} id="my-button">Track me</button>
   );
 }
-```
+\`\`\`
 
 ### Viewing Analytics
 

@@ -6,11 +6,11 @@ This is the app checklist for cleaners of an Airbnb property [https://ilbuco.com
 
 Clone the repository and install dependencies:
 
-```bash
+\`\`\`bash
 git clone <this-repo-url>
 cd il-buco-cleaners-app
 npm install
-```
+\`\`\`
 
 ## Credits
 

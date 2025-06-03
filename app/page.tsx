@@ -98,7 +98,8 @@ const CHECKLIST_HABITACIONES = [
   {
     id: 2,
     categoria: "Revisión para lavar",
-    texto: "Revisar si hace falta lavar: Fundas decorativas de almohadas, Funda de futón, Mantas, pie de cama, Cortinas",
+    texto:
+      "Revisar si hace falta lavar: Fundas decorativas de almohadas, Funda de futón, Mantas, pie de cama, Cortinas",
   },
   {
     id: 3,
@@ -113,7 +114,8 @@ const CHECKLIST_HABITACIONES = [
   {
     id: 6,
     categoria: "Dormitorio",
-    texto: "Tender la cama: Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz",
+    texto:
+      "Tender la cama: Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz",
   },
   {
     id: 7,
@@ -123,7 +125,8 @@ const CHECKLIST_HABITACIONES = [
   {
     id: 8,
     categoria: "Baño",
-    texto: "Reposición de baño: Toallas - 2 grandes y 2 de mano, Papel higiénico - 1 en uso + 1 de repuesto, Botellas - jabón en bacha y ducha; shampoo (revisar niveles)",
+    texto:
+      "Reposición de baño: Toallas - 2 grandes y 2 de mano, Papel higiénico - 1 en uso + 1 de repuesto, Botellas - jabón en bacha y ducha; shampoo (revisar niveles)",
   },
   {
     id: 11,
@@ -148,25 +151,37 @@ const CHECKLIST_HABITACIONES = [
   {
     id: 15,
     categoria: "Cocina y utensilios",
-    texto: "Revisar cafetera: Verificar que esté vacía por dentro, Café - hay al menos mitad de bolsa, Filtros - hay al menos mitad de caja",
+    texto: `Revisar cafetera: Verificar que esté vacía por dentro, Café - hay al menos mitad de bolsa, Filtros - hay al menos mitad de caja`,
   },
-  { id: 16, categoria: "Limpieza general", texto: `Limpieza completa:
+  {
+    id: 16,
+    categoria: "Limpieza general",
+    texto: `Limpieza completa:
  Limpiar vidrios si están marcados,
  Limpiar mesas\\, mesitas y estantes,
  Revisar y limpiar horno\\, microondas y heladera,
  Aspirar y trapear pisos
-` },
+`,
+  },
 
-  { id: 17, categoria: "Basura y cierre", texto: `Manejo de basura:
+  {
+    id: 17,
+    categoria: "Basura y cierre",
+    texto: `Manejo de basura:
  Tirar la basura de todos los tachos,
  Poner 1 bolsa nueva,
- Dejar 2 bolsas de repuesto` },
+ Dejar 2 bolsas de repuesto`,
+  },
 
- { id: 18, categoria: "Basura y cierre", texto: `Cierre de la habitación:
+  {
+    id: 18,
+    categoria: "Basura y cierre",
+    texto: `Cierre de la habitación:
  Apagar aire acondicionado,
  Cerrar ventanas,
  Apagar luces,
- Cerrar puertas` },
+ Cerrar puertas`,
+  },
 ]
 
 // Checklist simplificado para parrilla
@@ -268,7 +283,7 @@ interface SesionLimpieza {
   habitacionesLimpiadas: string[]
 }
 
-type Habitacion = typeof HABITACIONES[number];
+type Habitacion = (typeof HABITACIONES)[number]
 
 export default function LimpiezaPage() {
   const [habitacionSeleccionada, setHabitacionSeleccionada] = useState<Habitacion | null>(null)
@@ -366,35 +381,35 @@ export default function LimpiezaPage() {
   // Helper to upload images to the server
   async function uploadImage(file: File): Promise<string> {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const formData = new FormData()
+      formData.append("file", file)
 
       const res = await fetch("/api/upload-image", {
         method: "POST",
         body: formData,
-      });
+      })
 
       if (!res.ok) {
-        let errorMsg = `HTTP error! status: ${res.status}`;
+        let errorMsg = `HTTP error! status: ${res.status}`
         try {
-          const errorData = await res.json();
-          errorMsg = errorData?.error || errorMsg;
-          if (errorData?.details) errorMsg += ` (${errorData.details})`;
+          const errorData = await res.json()
+          errorMsg = errorData?.error || errorMsg
+          if (errorData?.details) errorMsg += ` (${errorData.details})`
         } catch (e) {
           // If we can't parse the error, just use the status text
-          errorMsg = res.statusText || errorMsg;
+          errorMsg = res.statusText || errorMsg
         }
-        throw new Error(errorMsg);
+        throw new Error(errorMsg)
       }
 
-      const data = await res.json();
+      const data = await res.json()
       if (!data?.url) {
-        throw new Error('No URL returned from upload');
+        throw new Error("No URL returned from upload")
       }
-      return data.url;
+      return data.url
     } catch (error) {
-      console.error('Upload failed:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to upload image');
+      console.error("Upload failed:", error)
+      throw new Error(error instanceof Error ? error.message : "Failed to upload image")
     }
   }
 
@@ -647,7 +662,7 @@ export default function LimpiezaPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-md mx-auto min-h-[480px] flex flex-col">
         {/* Header */}
         <div className="flex items-center mb-4">
           <Button
@@ -692,155 +707,158 @@ export default function LimpiezaPage() {
           />
         </div>
 
-        {/* Paso actual */}
-        <Card className="border-0 shadow-lg">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <Badge variant="secondary">{stepActual.categoria}</Badge>
-            </div>
-            <CardTitle className="text-lg">
-              {stepActual.texto.includes(":") && stepActual.texto.split(":")[1].includes(",") ? (
-                <div>
-                  <div className="mb-2">{stepActual.texto.split(":")[0]}:</div>
-                  <ul className="list-disc list-inside space-y-1 text-base font-normal">
-                    {(() => {
-                      let afterColon = stepActual.texto.split(":")[1];
-                      console.log("After colon:", afterColon);
+        {/* Content container that grows to fill space */}
+        <div className="flex-1 flex flex-col">
+          {/* Paso actual */}
+          <Card className="border-0 shadow-lg flex-1 flex flex-col">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <Badge variant="secondary">{stepActual.categoria}</Badge>
+              </div>
+              <CardTitle className="text-lg">
+                {stepActual.texto.includes(":") && stepActual.texto.split(":")[1].includes(",") ? (
+                  <div>
+                    <div className="mb-2">{stepActual.texto.split(":")[0]}:</div>
+                    <ul className="list-disc list-inside space-y-1 text-base font-normal">
+                      {(() => {
+                        const afterColon = stepActual.texto.split(":")[1]
+                        console.log("After colon:", afterColon)
 
-                      // Remove newlines and extra spaces
-                      let normalized = afterColon.replace(/\n/g, " ").replace(/\s+/g, " ");
-                      console.log("After normalizing whitespace:", normalized);
+                        // Remove newlines and extra spaces
+                        const normalized = afterColon.replace(/\n/g, " ").replace(/\s+/g, " ")
+                        console.log("After normalizing whitespace:", normalized)
 
-                      // Replace \, and \: with placeholders
-                      // This allows for escaped commas and colons to be handled correctly in splitting and rendering
-                      let replaced = normalized
-                        .replace(/\\,/g, "<<<COMMA>>>")
-                        .replace(/\\:/g, "<<<COLON>>>"); 
-                      console.log("After replacing \\, and \\: with placeholders:", replaced);
+                        // Replace \, and \: with placeholders
+                        // This allows for escaped commas and colons to be handled correctly in splitting and rendering
+                        const replaced = normalized.replace(/\\,/g, "<<<COMMA>>>").replace(/\\:/g, "<<<COLON>>>")
+                        console.log("After replacing \\, and \\: with placeholders:", replaced)
 
-                      // Split on commas (not escaped)
-                      let splitArr = replaced.split(",");
-                      console.log("After splitting by ,:", splitArr);
+                        // Split on commas (not escaped)
+                        const splitArr = replaced.split(",")
+                        console.log("After splitting by ,:", splitArr)
 
-                      // Replace placeholders with original characters, trim, and filter out empty items
-                      let finalArr = splitArr
-                        .map((item) =>
-                          item
-                            .replace(/<<<COMMA>>>/g, ",")
-                            .replace(/<<<COLON>>>/g, ":")
-                            .trim()
-                        )
-                        .filter((item) => item.length > 0);
-                      console.log("After replacing placeholders with original characters in each item:", finalArr);
+                        // Replace placeholders with original characters, trim, and filter out empty items
+                        const finalArr = splitArr
+                          .map((item) =>
+                            item
+                              .replace(/<<<COMMA>>>/g, ",")
+                              .replace(/<<<COLON>>>/g, ":")
+                              .trim(),
+                          )
+                          .filter((item) => item.length > 0)
+                        console.log("After replacing placeholders with original characters in each item:", finalArr)
 
-                      return finalArr.map((item, index) => (
-                        <li key={index} className="text-gray-700">
-                          {item}
-                        </li>
-                      ));
-                    })()}
-                  </ul>
-                </div>
-              ) : (
-                (() => {
-                  let raw = stepActual.texto
-                  raw = raw.replace(/\\:/g, ":").replace(/\\,/g, ",")
-                  return raw
-                })()
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {tipoFotoRequerida && (
-              <div className="space-y-3">
-                <label className="block">
-                  <div className="border-2 border-dashed border-yellow-400 rounded-lg p-6 text-center cursor-pointer hover:border-yellow-500 transition-colors bg-yellow-50">
-                    <Camera className="w-8 h-8 mx-auto mb-3 text-yellow-600" />
-                    <h4 className="font-medium text-yellow-800 mb-2">{tipoFotoRequerida.titulo}</h4>
-                    <p className="text-sm text-yellow-700 mb-3">{tipoFotoRequerida.descripcion}</p>
-                    <p className="text-sm text-yellow-800 font-medium">Toca para tomar la foto requerida</p>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) completarPaso(file)
-                      }}
-                    />
+                        return finalArr.map((item, index) => (
+                          <li key={index} className="text-gray-700">
+                            {item}
+                          </li>
+                        ))
+                      })()}
+                    </ul>
                   </div>
-                </label>
-              </div>
-            )}
-
-            {validandoFoto && (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-sm text-gray-600">Analizando foto con IA...</p>
-              </div>
-            )}
-
-            {validacionActual && !esperandoCorreccion && (
-              <div className={`p-4 rounded-lg border-0 ${validacionActual.esValida ? "bg-green-100" : "bg-red-100"}`}>
-                <div className="flex items-start">
-                  {validacionActual.esValida ? (
-                    <CheckCircle className="w-5 h-5 text-green-600 mr-2 mt-0.5" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <div className={`text-sm ${validacionActual.esValida ? "text-green-800" : "text-red-800"}`}>
-                      <div className="font-medium mb-2">Análisis de IA:</div>
-                      <div className="mb-1">
-                        <strong>Esperaba ver:</strong> {validacionActual.analisis.esperaba}
-                      </div>
-                      <div>
-                        <strong>Encontré:</strong> {validacionActual.analisis.encontro}
-                      </div>
+                ) : (
+                  (() => {
+                    let raw = stepActual.texto
+                    raw = raw.replace(/\\:/g, ":").replace(/\\,/g, ",")
+                    return raw
+                  })()
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 flex-1 flex flex-col">
+              {tipoFotoRequerida && (
+                <div className="space-y-3">
+                  <label className="block">
+                    <div className="border-2 border-dashed border-yellow-400 rounded-lg p-6 text-center cursor-pointer hover:border-yellow-500 transition-colors bg-yellow-50">
+                      <Camera className="w-8 h-8 mx-auto mb-3 text-yellow-600" />
+                      <h4 className="font-medium text-yellow-800 mb-2">{tipoFotoRequerida.titulo}</h4>
+                      <p className="text-sm text-yellow-700 mb-3">{tipoFotoRequerida.descripcion}</p>
+                      <p className="text-sm text-yellow-800 font-medium">Toca para tomar la foto requerida</p>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) completarPaso(file)
+                        }}
+                      />
                     </div>
-                  </div>
+                  </label>
                 </div>
-              </div>
-            )}
+              )}
 
-            {esperandoCorreccion && (
-              <div className="space-y-3">
-                <div className="p-4 bg-red-100 rounded-lg border-0">
+              {validandoFoto && (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-sm text-gray-600">Analizando foto con IA...</p>
+                </div>
+              )}
+
+              {validacionActual && !esperandoCorreccion && (
+                <div className={`p-4 rounded-lg border-0 ${validacionActual.esValida ? "bg-green-100" : "bg-red-100"}`}>
                   <div className="flex items-start">
-                    <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                    {validacionActual.esValida ? (
+                      <CheckCircle className="w-5 h-5 text-green-600 mr-2 mt-0.5" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                    )}
                     <div className="flex-1">
-                      <div className="text-sm text-red-800">
+                      <div className={`text-sm ${validacionActual.esValida ? "text-green-800" : "text-red-800"}`}>
                         <div className="font-medium mb-2">Análisis de IA:</div>
                         <div className="mb-1">
-                          <strong>Esperaba ver:</strong> {validacionActual?.analisis.esperaba}
+                          <strong>Esperaba ver:</strong> {validacionActual.analisis.esperaba}
                         </div>
-                        <div className="mb-3">
-                          <strong>Encontré:</strong> {validacionActual?.analisis.encontro}
+                        <div>
+                          <strong>Encontré:</strong> {validacionActual.analisis.encontro}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <Button onClick={confirmarCorreccion} className="flex-1">
-                    Ya corregí, sacar otra foto
-                  </Button>
-                  <Button variant="outline" onClick={ignorarCorreccion} className="flex-1">
-                    Todo bien, ignorar
+              )}
+
+              {esperandoCorreccion && (
+                <div className="space-y-3">
+                  <div className="p-4 bg-red-100 rounded-lg border-0">
+                    <div className="flex items-start">
+                      <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="text-sm text-red-800">
+                          <div className="font-medium mb-2">Análisis de IA:</div>
+                          <div className="mb-1">
+                            <strong>Esperaba ver:</strong> {validacionActual?.analisis.esperaba}
+                          </div>
+                          <div className="mb-3">
+                            <strong>Encontré:</strong> {validacionActual?.analisis.encontro}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button onClick={confirmarCorreccion} className="flex-1">
+                      Ya corregí, sacar otra foto
+                    </Button>
+                    <Button variant="outline" onClick={ignorarCorreccion} className="flex-1">
+                      Todo bien, ignorar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!tipoFotoRequerida && !validandoFoto && !esperandoCorreccion && (
+                <div className="mt-auto">
+                  <Button onClick={() => completarPaso()} className="w-full flex items-center justify-center gap-2">
+                    <Check className="w-4 h-4" />
+                    Marcar como completado
                   </Button>
                 </div>
-              </div>
-            )}
-
-            {!tipoFotoRequerida && !validandoFoto && !esperandoCorreccion && (
-              <Button onClick={() => completarPaso()} className="w-full flex items-center justify-center gap-2">
-                <Check className="w-4 h-4" />
-                Marcar como completado
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

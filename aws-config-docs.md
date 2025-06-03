@@ -3,11 +3,11 @@
 This document previously contained AWS S3 configuration that has been removed for security reasons.
     ]
 }
-```
+\`\`\`
 
 ## CORS Configuration
 
-```json
+\`\`\`json
 {
     "CORSRules": [
         {
@@ -35,7 +35,7 @@ This document previously contained AWS S3 configuration that has been removed fo
         }
     ]
 }
-```
+\`\`\`
 
 ## How to Apply in AWS Console
 
@@ -58,4 +58,3 @@ This document previously contained AWS S3 configuration that has been removed fo
 Make sure to also check that:
 - Block all public access is turned OFF for the bucket
 - ACLs are enabled if you need them
-
