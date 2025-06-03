@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongo:27017/il-buco-cleaners
+      - UPLOADS_DIR=/app/uploads
+    volumes:
+      - ./uploads:/app/uploads
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - mongo
+      - nginx
+    command: npm run dev
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=il-buco-cleaners
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./uploads:/usr/share/nginx/html/uploads
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - app
+
+volumes:
+  mongo_data:

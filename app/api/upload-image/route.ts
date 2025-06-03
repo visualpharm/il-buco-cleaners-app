@@ -1,31 +1,45 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
+import { saveImage } from "@/lib/storage";
+import { DatabaseService } from "@/lib/database";
+import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData()
-    const file = formData.get("file") as File | null
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
+    const sessionId = formData.get("sessionId") as string | null;
+    const type = formData.get("type") as string | null; // 'before' or 'after'
 
     if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    // Convert file to base64 data URL for local storage
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    const base64 = buffer.toString("base64")
-    const mimeType = file.type || "image/jpeg"
-    const dataUrl = `data:${mimeType};base64,${base64}`
+    // Save file to filesystem
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const result = await saveImage(buffer, file.name, sessionId || undefined);
 
-    // Return the data URL which can be used directly in img src
-    return NextResponse.json({ url: dataUrl })
+    // Save photo record to database if sessionId provided
+    if (sessionId && type) {
+      await DatabaseService.savePhoto({
+        id: uuidv4(),
+        sessionId,
+        type: type as 'before' | 'after',
+        filename: result.filename,
+        url: result.url,
+        uploadedAt: new Date()
+      });
+    }
+
+    return NextResponse.json({ url: result.url, filename: result.filename });
   } catch (error) {
-    console.error("Upload error:", error)
+    console.error("Upload error:", error);
     return NextResponse.json(
       {
         error: "Upload failed",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }
