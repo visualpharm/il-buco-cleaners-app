@@ -10,32 +10,62 @@ export default function DemoTestPage() {
   const [results, setResults] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  // Create a simple test image as a blob
+  const createTestImage = (): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas")
+      canvas.width = 400
+      canvas.height = 300
+      const ctx = canvas.getContext("2d")!
+
+      // Create a simple gradient background
+      const gradient = ctx.createLinearGradient(0, 0, 400, 300)
+      gradient.addColorStop(0, "#4F46E5")
+      gradient.addColorStop(1, "#7C3AED")
+      ctx.fillStyle = gradient
+      ctx.fillRect(0, 0, 400, 300)
+
+      // Add some text
+      ctx.fillStyle = "white"
+      ctx.font = "24px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText("Demo Test Image", 200, 150)
+      ctx.font = "16px Arial"
+      ctx.fillText(new Date().toLocaleString(), 200, 180)
+
+      canvas.toBlob(
+        (blob) => {
+          resolve(blob!)
+        },
+        "image/jpeg",
+        0.8,
+      )
+    })
+  }
+
   const runDemoTest = async () => {
     setIsRunning(true)
     setError(null)
     setResults([])
 
     try {
-      // Step 1: Generate a random image from picsum.photos
-      setResults((prev) => [...prev, { step: "Downloading random image...", status: "running" }])
+      // Step 1: Create a test image
+      setResults((prev) => [...prev, { step: "Creating test image...", status: "running" }])
 
-      const imageResponse = await fetch("https://picsum.photos/400/300")
-      if (!imageResponse.ok) throw new Error("Failed to fetch random image")
-
-      const imageBlob = await imageResponse.blob()
+      const imageBlob = await createTestImage()
       setResults((prev) =>
         prev.map((r) =>
-          r.step === "Downloading random image..."
-            ? { ...r, status: "success", details: `Downloaded ${Math.round(imageBlob.size / 1024)}KB image` }
+          r.step === "Creating test image..."
+            ? { ...r, status: "success", details: `Created ${Math.round(imageBlob.size / 1024)}KB test image` }
             : r,
         ),
       )
 
-      // Step 2: Upload the image
-      setResults((prev) => [...prev, { step: "Uploading image to server...", status: "running" }])
+      // Step 2: Upload the image to R2 storage
+      setResults((prev) => [...prev, { step: "Uploading image to R2 storage...", status: "running" }])
 
       const formData = new FormData()
-      formData.append("file", imageBlob, "demo-image.jpg")
+      formData.append("file", imageBlob, "demo-test-image.jpg")
 
       const uploadResponse = await fetch("/api/upload-image", {
         method: "POST",
@@ -44,14 +74,20 @@ export default function DemoTestPage() {
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json()
-        throw new Error(`Upload failed: ${errorData.error}`)
+        throw new Error(`R2 upload failed: ${errorData.error}${errorData.details ? ` - ${errorData.details}` : ""}`)
       }
 
       const uploadData = await uploadResponse.json()
+
       setResults((prev) =>
         prev.map((r) =>
-          r.step === "Uploading image to server..."
-            ? { ...r, status: "success", details: "Image uploaded successfully", url: uploadData.url }
+          r.step === "Uploading image to R2 storage..."
+            ? {
+                ...r,
+                status: "success",
+                details: `Image uploaded to R2 as ${uploadData.filename}`,
+                url: uploadData.url,
+              }
             : r,
         ),
       )
@@ -106,24 +142,15 @@ export default function DemoTestPage() {
       setResults((prev) => [
         ...prev,
         {
-          step: "✅ D1 Demo test completed successfully!",
+          step: "✅ Demo test completed successfully!",
           status: "success",
-          details: `Session ID: ${sessionResult.sessionId} stored in D1 simulation`,
+          details: `Session ID: ${sessionResult.sessionId} stored in D1 with R2 image`,
         },
       ])
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error"
-      let detailedError = errorMessage
-
-      // Add more specific D1 error information
-      if (errorMessage.includes("Failed to execute 'json'")) {
-        detailedError = `API returned non-JSON response. Check if D1 database binding is configured correctly.`
-      } else if (errorMessage.includes("D1 session creation failed")) {
-        detailedError = `${errorMessage}. Check D1 database connection and table structure.`
-      }
-
-      setError(detailedError)
-      setResults((prev) => [...prev, { step: "❌ Test failed", status: "error", details: detailedError }])
+      setError(errorMessage)
+      setResults((prev) => [...prev, { step: "❌ Test failed", status: "error", details: errorMessage }])
     } finally {
       setIsRunning(false)
     }
@@ -134,10 +161,10 @@ export default function DemoTestPage() {
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>Demo Test - Upload & Database</CardTitle>
+            <CardTitle>Demo Test - R2 Upload & D1 Database</CardTitle>
             <p className="text-gray-600">
-              This test will automatically download a random image, upload it to the server, and create a cleaning
-              session record in the database.
+              This test will create a test image, upload it to Cloudflare R2 storage, and create a cleaning session
+              record in the D1 database.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -147,22 +174,25 @@ export default function DemoTestPage() {
 
             {error && (
               <div className="p-4 bg-red-100 border border-red-300 rounded-lg">
-                <h3 className="font-semibold text-red-800">D1 Database Error:</h3>
+                <h3 className="font-semibold text-red-800">Error:</h3>
                 <p className="text-red-700 mb-2">{error}</p>
                 <details className="text-sm text-red-600">
-                  <summary className="cursor-pointer font-medium">D1 Troubleshooting</summary>
+                  <summary className="cursor-pointer font-medium">Troubleshooting</summary>
                   <div className="mt-2 space-y-2">
                     <div className="p-2 bg-blue-50 border border-blue-200 rounded">
-                      <strong>Your D1 Database:</strong>
+                      <strong>R2 Storage:</strong>
                       <ul className="list-disc list-inside mt-1">
-                        <li>Database: ilbuco-cleaning-db</li>
-                        <li>ID: be8ebe7e-08ff-4db0-b386-21a989302bea</li>
-                        <li>Check if tables exist in D1 console</li>
-                        <li>Verify Cloudflare Workers binding is configured</li>
+                        <li>Check if R2 environment variables are configured</li>
+                        <li>Verify bucket permissions and CORS settings</li>
+                        <li>Ensure public URL is accessible</li>
                       </ul>
                     </div>
-                    <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
-                      <strong>Note:</strong> This demo simulates D1 operations using localStorage for testing purposes.
+                    <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+                      <strong>D1 Database:</strong>
+                      <ul className="list-disc list-inside mt-1">
+                        <li>Verify D1 database binding is configured</li>
+                        <li>Check if tables exist in D1 console</li>
+                      </ul>
                     </div>
                   </div>
                 </details>
@@ -199,6 +229,7 @@ export default function DemoTestPage() {
                   alt="Demo uploaded image"
                   className="max-w-full h-auto rounded-lg border"
                 />
+                <p className="text-sm text-gray-500 mt-2">Stored in Cloudflare R2</p>
               </div>
             )}
           </CardContent>
