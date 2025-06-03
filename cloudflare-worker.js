@@ -360,7 +360,6 @@ async function handleGetDemoSessions(request, env) {
         FROM photos p
         WHERE p.session_id = cs.id) as photos
       FROM cleaning_sessions cs
-      WHERE cs.room_type = 'habitacion'
       ORDER BY cs.started_at DESC
       LIMIT 10
     `).all()

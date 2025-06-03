@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "AllowedOrigins": ["*"],
+      "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
+      "AllowedHeaders": ["*"]
+    }
+  ]
+}

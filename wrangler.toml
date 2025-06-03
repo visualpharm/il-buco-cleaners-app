@@ -18,6 +18,7 @@ bucket_name = "ilbuco-clean"
 PUBLIC_R2_URL = "https://pub-ACCOUNT_ID.r2.dev/ilbuco-clean"
 
 # Routes
-[routes]
-pattern = "api/*"
-zone_name = "your-domain.com"
+# Uncomment and update with your domain when ready
+# [[routes]]
+# pattern = "api/*"
+# zone_name = "your-domain.com"
