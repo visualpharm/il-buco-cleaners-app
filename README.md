@@ -1,30 +1,17 @@
 # Limpieza del Buco
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+This is the app checklist for cleaners of an Airbnb property [https://ilbuco.com.ar](https://ilbuco.com.ar), but could be adopted to any other property with a bit of vibe coding.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/lovedeathtractors/v0-limpieza-del-buco)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/IA6FIaIuv97)
+## Installation
 
-## Overview
+Clone the repository and install dependencies:
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+```bash
+git clone <this-repo-url>
+cd il-buco-cleaners-app
+npm install
+```
 
-## Deployment
+## Credits
 
-Your project is live at:
-
-**[https://vercel.com/lovedeathtractors/v0-limpieza-del-buco](https://vercel.com/lovedeathtractors/v0-limpieza-del-buco)**
-
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.dev/chat/projects/IA6FIaIuv97](https://v0.dev/chat/projects/IA6FIaIuv97)**
-
-## How It Works
-
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+Made by [aiandtractors.com](https://aiandtractors.com)
