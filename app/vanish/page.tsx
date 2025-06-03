@@ -162,7 +162,9 @@ export default function VanishPage() {
     }))
 
     // Ordenar por fecha más reciente primero
-    limpiezasConFechas.sort((a, b) => b.horaInicio.getTime() - a.horaInicio.getTime())
+    limpiezasConFechas.sort((a: LimpiezaCompleta, b: LimpiezaCompleta) => 
+      b.horaInicio.getTime() - a.horaInicio.getTime()
+    )
     setLimpiezas(limpiezasConFechas)
   }, [])
 
@@ -405,30 +407,18 @@ export default function VanishPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Il Buco - Panel de Control</h1>
-            <p className="text-gray-600">Reportes de limpieza y seguimiento de habitaciones</p>
-          </div>
-          <div className="flex space-x-3">
-            <Button
-              variant="outline"
-              onClick={() => window.open("/", "_blank")}
-              className="bg-blue-50 hover:bg-blue-100 border-blue-300"
-            >
-              🧹 Abrir Checklist de Limpiador
-            </Button>
-            <Button variant="destructive" onClick={limpiarDatos}>
-              Limpiar Datos
-            </Button>
-          </div>
+        <div className="mb-6 flex justify-end">
+          <Button
+            onClick={() => window.open("/", "_blank")}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            🧹 Limpiador
+          </Button>
         </div>
 
-        {/* Estadísticas generales */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <Card>
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-blue-600">{limpiezas.length}</div>
@@ -487,12 +477,11 @@ export default function VanishPage() {
                             {limpieza.completa === false && <Badge variant="destructive">Incompleta</Badge>}
                           </div>
                           <p className="text-gray-600 text-sm">
-                            {limpieza.horaInicio.toLocaleDateString()} - {limpieza.horaInicio.toLocaleTimeString()} a{" "}
-                            {limpieza.horaFin.toLocaleTimeString()}
+                            {formatearTiempo(limpieza.horaFin.getTime() - limpieza.horaInicio.getTime())}
                           </p>
                           {limpieza.razon && <p className="text-orange-600 text-xs mt-1">{limpieza.razon}</p>}
                         </div>
-                        <div className="flex space-x-4 text-sm">
+                        <div className="grid grid-cols-2 gap-2 sm:flex sm:space-x-4 text-sm">
                           <div className="text-center">
                             <div className="font-bold text-blue-600">{resumen.tiempoTotal}</div>
                             <div className="text-gray-500">Duración</div>
@@ -513,7 +502,7 @@ export default function VanishPage() {
                       </div>
 
                       {/* Indicadores de estado */}
-                      <div className="flex space-x-2 mt-3">
+                      <div className="flex flex-wrap gap-2 mt-3">
                         {limpieza.completa !== false && resumen.pasosIncompletos === 0 && (
                           <Badge className="bg-green-100 text-green-800">Completa</Badge>
                         )}
