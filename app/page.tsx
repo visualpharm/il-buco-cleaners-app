@@ -863,17 +863,6 @@ export default function LimpiezaPage() {
               Step {pasoActual + 1} of {CHECKLIST_STEPS.length} • {habitacionSeleccionada!.piso}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              guardarLimpiezaIncompleta(datosLimpieza);
-              setHabitacionSeleccionada(null);
-            }}
-            className="text-xs"
-          >
-            Save
-          </Button>
         </div>
 
         {/* Progreso */}
