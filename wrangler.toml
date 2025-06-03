@@ -1,0 +1,22 @@
+name = "il-buco-click-tracker"
+main = "src/worker.js"
+compatibility_date = "2023-05-18"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ilbuco-cleaning-db"
+database_id = "be8ebe7e-08ff-4db0-b386-21a989302bea"
+
+[build]
+command = "npm run build"
+
+[build.upload]
+format = "modules"
+main = "./dist/worker.js"
+
+[env.production]
+route = "https://ilbuco-cleaning.workers.dev/*"
+
+[env.staging]
+route = "https://staging.ilbuco-cleaning.workers.dev/*"
+workers_dev = true

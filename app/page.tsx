@@ -112,8 +112,8 @@ const CHECKLIST_HABITACIONES = [
   },
   {
     id: 6,
-    categoria: "Tender la cama",
-    texto: "Tender la cama: Tender la cama: Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz",
+    categoria: "Dormitorio",
+    texto: "Tender la cama: Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz",
   },
   {
     id: 7,
@@ -363,6 +363,41 @@ export default function LimpiezaPage() {
     return tipoFoto || null
   }
 
+  // Helper to upload images to the server
+  async function uploadImage(file: File): Promise<string> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        let errorMsg = `HTTP error! status: ${res.status}`;
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData?.error || errorMsg;
+          if (errorData?.details) errorMsg += ` (${errorData.details})`;
+        } catch (e) {
+          // If we can't parse the error, just use the status text
+          errorMsg = res.statusText || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
+
+      const data = await res.json();
+      if (!data?.url) {
+        throw new Error('No URL returned from upload');
+      }
+      return data.url;
+    } catch (error) {
+      console.error('Upload failed:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to upload image');
+    }
+  }
+
   const completarPaso = async (foto?: File) => {
     const step = CHECKLIST_STEPS[pasoActual]
     const ahora = new Date()
@@ -370,9 +405,12 @@ export default function LimpiezaPage() {
 
     let validacion = undefined
     let tipoFoto = undefined
+    let fotoUrl = undefined // <-- new
 
     if (foto && tipoFotoRequerida) {
       setValidandoFoto(true)
+      // Upload image to disk and get URL
+      fotoUrl = await uploadImage(foto)
       validacion = await validarFotoConIA(foto, tipoFotoRequerida.validacionIA, tipoFotoRequerida)
       tipoFoto = tipoFotoRequerida.id
       setValidandoFoto(false)
@@ -414,7 +452,7 @@ export default function LimpiezaPage() {
       ...datosActualizados[pasoActual],
       horaCompletado: ahora,
       tiempoTranscurrido,
-      foto: foto ? URL.createObjectURL(foto) : undefined,
+      foto: fotoUrl || (foto ? URL.createObjectURL(foto) : undefined), // Use uploaded URL if available
       validacionIA: validacion,
       tipoFoto,
     }
