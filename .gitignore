@@ -32,6 +32,3 @@ next-env.d.ts
 
 # uploads
 uploads
-
-# Config files with secrets
-/config/*.config.js
