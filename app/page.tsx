@@ -101,37 +101,37 @@ const TIPOS_FOTOS = [
 
 // Checklist para habitaciones normales
 const CHECKLIST_HABITACIONES = [
-  { id: 1, categoria: "Inspección inicial", texto: "Tocar la puerta y entrar, verificar si hubo check-out" },
+  { id: 1, categoria: "Inspección inicial", texto: "Entramos: Tocar la puerta, Entrar y verificar si hubo check-out" },
   {
     id: 2,
     categoria: "Revisión para lavar",
-    texto: "Revisar si hace falta lavar: cortinas, fundas decorativas, funda de futón, mantas o plaids",
+    texto: "Revisar si hace falta lavar: Fundas decorativas de almohadas, Funda de futón, Mantas, pie de cama, Cortinas",
   },
   {
     id: 3,
     categoria: "Revisión para lavar",
-    texto: "Si hubo huéspedes: sábanas, fundas de almohadas, funda del edredón, toallas",
+    texto: "Si hubo huéspedes, lavar: Sábanas, Fundas de almohadas, Funda del edredón, Toallas",
   },
   {
     id: 4,
-    categoria: "Lavar blanquería",
-    texto: "Separar blancos y colores, Poner a lavar, Se puede juntar con otras habitaciones",
+    categoria: "Revisión para lavar",
+    texto: "Separar y lavar ropa: Separar blancos y colores, Poner a lavar (se puede juntar con otras habitaciones)",
   },
   {
     id: 6,
     categoria: "Tender la cama",
-    texto:
-      "Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz",
+    texto: "Tender la cama: Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz",
   },
-  { id: 7, categoria: "Baño", texto: "1 toalla grande + 1 de mano por huésped" },
-  { id: 8, categoria: "Baño", texto: "Papel higiénico: 1 usado + 1 nuevo" },
   {
-    id: 9,
+    id: 7,
     categoria: "Baño",
-    texto:
-      "Botellas: jabón líquido en bacha, jabón líquido en ducha, shampoo (revisar que no estén con menos de la mitad)",
+    texto: "Limpieza de baño: Ducha, Bacha, Inodoro, Espejo, Mampara",
   },
-  { id: 10, categoria: "Baño", texto: "Limpiar: ducha, bacha, inodoro, espejo, mampara" },
+  {
+    id: 8,
+    categoria: "Baño",
+    texto: "Reposición de baño: Toallas - 2 grandes y 2 de mano, Papel higiénico - 1 en uso + 1 de repuesto, Botellas - jabón en bacha y ducha; shampoo (revisar niveles)",
+  },
   {
     id: 11,
     categoria: "Cocina y utensilios",
@@ -142,21 +142,38 @@ const CHECKLIST_HABITACIONES = [
     categoria: "Cocina y utensilios",
     texto: "Verificar vajilla: 2 platos grandes, 2 platos hondos, 2 platos postre, 2 vasos, 2 tazas",
   },
-  { id: 13, categoria: "Cocina y utensilios", texto: "Verificar utensilios de cocina: 1 olla o sartén, 1 espátula" },
+  {
+    id: 13,
+    categoria: "Cocina y utensilios",
+    texto: "Verificar utensilios de cocina: 1 olla, 1 sartén, 1 espátula",
+  },
   {
     id: 14,
     categoria: "Cocina y utensilios",
-    texto: "Condimentos: 3 bolsitas de sal, 3 de azúcar, 3 de edulcorante en frascos (uno por tipo)",
+    texto: "Verificar condimentos: 5 bolsitas de sal, 5 bolsitas de azúcar, 5 bolsitas de edulcorante",
   },
-  { id: 15, categoria: "Cocina y utensilios", texto: "Cafetera: revisar que esté vacía adentro" },
-  { id: 16, categoria: "Limpieza general", texto: "Limpiar vidrios si están marcados" },
-  { id: 17, categoria: "Limpieza general", texto: "Limpiar mesas, mesitas, estantes" },
-  { id: 18, categoria: "Limpieza general", texto: "Revisar y limpiar horno, microondas, heladera por dentro" },
-  { id: 19, categoria: "Limpieza general", texto: "Aspirar y trapear piso" },
-  { id: 20, categoria: "Basura y cierre", texto: "Tirar la basura de todos los tachos" },
-  { id: 21, categoria: "Basura y cierre", texto: "Poner 1 bolsa nueva y dejar 2 bolsas de repuesto en el fondo" },
-  { id: 22, categoria: "Basura y cierre", texto: "Apagar luces y aire" },
-  { id: 23, categoria: "Basura y cierre", texto: "Cerrar ventanas y puertas" },
+  {
+    id: 15,
+    categoria: "Cocina y utensilios",
+    texto: "Revisar cafetera: Verificar que esté vacía por dentro, Café - hay al menos mitad de bolsa, Filtros - hay al menos mitad de caja",
+  },
+  { id: 16, categoria: "Limpieza general", texto: `Limpieza completa:
+ Limpiar vidrios si están marcados,
+ Limpiar mesas\\, mesitas y estantes,
+ Revisar y limpiar horno\\, microondas y heladera,
+ Aspirar y trapear pisos
+` },
+
+  { id: 17, categoria: "Basura y cierre", texto: `Manejo de basura:
+ Tirar la basura de todos los tachos,
+ Poner 1 bolsa nueva,
+ Dejar 2 bolsas de repuesto` },
+
+ { id: 18, categoria: "Basura y cierre", texto: `Cierre de la habitación:
+ Apagar aire acondicionado,
+ Cerrar ventanas,
+ Apagar luces,
+ Cerrar puertas` },
 ]
 
 // Checklist simplificado para parrilla
@@ -258,15 +275,17 @@ interface SesionLimpieza {
   habitacionesLimpiadas: string[]
 }
 
+type Habitacion = typeof HABITACIONES[number];
+
 export default function LimpiezaPage() {
-  const [habitacionSeleccionada, setHabitacionSeleccionada] = useState(null)
-  const [pasoActual, setPasoActual] = useState(0)
-  const [datosLimpieza, setDatosLimpieza] = useState([])
-  const [horaInicioLimpieza, setHoraInicioLimpieza] = useState(null)
-  const [validandoFoto, setValidandoFoto] = useState(false)
-  const [esperandoCorreccion, setEsperandoCorreccion] = useState(false)
-  const [sesionActual, setSesionActual] = useState(null)
-  const [fotoRequerida, setFotoRequerida] = useState(null)
+  const [habitacionSeleccionada, setHabitacionSeleccionada] = useState<Habitacion | null>(null)
+  const [pasoActual, setPasoActual] = useState<number>(0)
+  const [datosLimpieza, setDatosLimpieza] = useState<StepData[]>([])
+  const [horaInicioLimpieza, setHoraInicioLimpieza] = useState<Date | null>(null)
+  const [validandoFoto, setValidandoFoto] = useState<boolean>(false)
+  const [esperandoCorreccion, setEsperandoCorreccion] = useState<boolean>(false)
+  const [sesionActual, setSesionActual] = useState<SesionLimpieza | null>(null)
+  const [fotoRequerida, setFotoRequerida] = useState<any>(null)
 
   // Obtener checklist según tipo de habitación
   const obtenerChecklist = (tipo: string) => {
@@ -585,7 +604,7 @@ export default function LimpiezaPage() {
           <CardContent className="text-center p-8">
             <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-green-800 mb-2">¡Limpieza Completada!</h2>
-            <p className="text-gray-600 mb-6">{habitacionSeleccionada.nombre} ha sido limpiada correctamente</p>
+            <p className="text-gray-600 mb-6">{habitacionSeleccionada!.nombre} ha sido limpiada correctamente</p>
             <Button onClick={() => setHabitacionSeleccionada(null)} className="w-full">
               Continuar con otra habitación
             </Button>
@@ -616,9 +635,9 @@ export default function LimpiezaPage() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1 text-center">
-            <h1 className="font-bold text-lg">{habitacionSeleccionada.nombre}</h1>
+            <h1 className="font-bold text-lg">{habitacionSeleccionada!.nombre}</h1>
             <p className="text-sm text-gray-600">
-              Paso {pasoActual + 1} de {CHECKLIST_STEPS.length} • {habitacionSeleccionada.piso}
+              Paso {pasoActual + 1} de {CHECKLIST_STEPS.length} • {habitacionSeleccionada!.piso}
             </p>
           </div>
           <Button
@@ -653,18 +672,50 @@ export default function LimpiezaPage() {
                 <div>
                   <div className="mb-2">{stepActual.texto.split(":")[0]}:</div>
                   <ul className="list-disc list-inside space-y-1 text-base font-normal">
-                    {stepActual.texto
-                      .split(":")[1]
-                      .split(",")
-                      .map((item, index) => (
+                    {(() => {
+                      let afterColon = stepActual.texto.split(":")[1];
+                      console.log("After colon:", afterColon);
+
+                      // Remove newlines and extra spaces
+                      let normalized = afterColon.replace(/\n/g, " ").replace(/\s+/g, " ");
+                      console.log("After normalizing whitespace:", normalized);
+
+                      // Replace \, and \: with placeholders
+                      // This allows for escaped commas and colons to be handled correctly in splitting and rendering
+                      let replaced = normalized
+                        .replace(/\\,/g, "<<<COMMA>>>")
+                        .replace(/\\:/g, "<<<COLON>>>"); 
+                      console.log("After replacing \\, and \\: with placeholders:", replaced);
+
+                      // Split on commas (not escaped)
+                      let splitArr = replaced.split(",");
+                      console.log("After splitting by ,:", splitArr);
+
+                      // Replace placeholders with original characters, trim, and filter out empty items
+                      let finalArr = splitArr
+                        .map((item) =>
+                          item
+                            .replace(/<<<COMMA>>>/g, ",")
+                            .replace(/<<<COLON>>>/g, ":")
+                            .trim()
+                        )
+                        .filter((item) => item.length > 0);
+                      console.log("After replacing placeholders with original characters in each item:", finalArr);
+
+                      return finalArr.map((item, index) => (
                         <li key={index} className="text-gray-700">
-                          {item.trim()}
+                          {item}
                         </li>
-                      ))}
+                      ));
+                    })()}
                   </ul>
                 </div>
               ) : (
-                stepActual.texto
+                (() => {
+                  let raw = stepActual.texto
+                  raw = raw.replace(/\\:/g, ":").replace(/\\,/g, ",")
+                  return raw
+                })()
               )}
             </CardTitle>
           </CardHeader>
