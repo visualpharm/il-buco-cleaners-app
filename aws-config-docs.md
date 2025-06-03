@@ -1,39 +1,6 @@
-# AWS S3 Configuration
+# Storage Configuration
 
-## Bucket Policy
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllowAppAccess",
-            "Effect": "Allow",
-            "Action": [
-                "s3:PutObject",
-                "s3:GetObject",
-                "s3:ListBucket"
-            ],
-            "Resource": [
-                "arn:aws:s3:::ilbuco-clean",
-                "arn:aws:s3:::ilbuco-clean/*"
-            ]
-        },
-        {
-            "Sid": "PublicRead",
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::ilbuco-clean/*",
-            "Condition": {
-                "StringLike": {
-                    "aws:Referer": [
-                        "https://il-buco-cleaners.vercel.app/*",
-                        "http://localhost:*/*"
-                    ]
-                }
-            }
-        }
+This document previously contained AWS S3 configuration that has been removed for security reasons.
     ]
 }
 ```
