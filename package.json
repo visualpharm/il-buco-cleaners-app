@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "wrangler pages dev --d1 DB=be8ebe7e-08ff-4db0-b386-21a989302bea -- npm run actual-next-dev",
+    "actual-next-dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

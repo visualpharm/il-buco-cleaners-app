@@ -147,25 +147,28 @@ export default function VanishPage() {
   const [limpiezas, setLimpiezas] = useState<LimpiezaCompleta[]>([])
   const [limpiezaSeleccionada, setLimpiezaSeleccionada] = useState<LimpiezaCompleta | null>(null)
 
-  useEffect(() => {
-    const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]")
-    // Convertir strings de fecha a objetos Date
-    const limpiezasConFechas = limpiezasGuardadas.map((limpieza: any) => ({
-      ...limpieza,
-      horaInicio: new Date(limpieza.horaInicio),
-      horaFin: new Date(limpieza.horaFin),
-      pasos: limpieza.pasos.map((paso: any) => ({
-        ...paso,
-        horaInicio: new Date(paso.horaInicio),
-        horaCompletado: paso.horaCompletado ? new Date(paso.horaCompletado) : undefined,
-      })),
-    }))
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // Ordenar por fecha más reciente primero
-    limpiezasConFechas.sort((a: LimpiezaCompleta, b: LimpiezaCompleta) => 
-      b.horaInicio.getTime() - a.horaInicio.getTime()
-    )
-    setLimpiezas(limpiezasConFechas)
+  useEffect(() => {
+    const fetchLimpiezas = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/vanish');
+        if (!response.ok) {
+          throw new Error('Failed to fetch cleaning sessions');
+        }
+        const data = await response.json();
+        setLimpiezas(data);
+      } catch (err) {
+        console.error('Error fetching cleaning sessions:', err);
+        setError('Failed to load cleaning sessions. Please try again later.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLimpiezas();
   }, [])
 
   const formatearTiempo = (ms: number) => {
@@ -194,11 +197,23 @@ export default function VanishPage() {
     }
   }
 
-  const limpiarDatos = () => {
+  const limpiarDatos = async () => {
     if (confirm("¿Estás seguro de que quieres borrar todos los datos de limpieza?")) {
-      localStorage.removeItem("limpiezas")
-      setLimpiezas([])
-      setLimpiezaSeleccionada(null)
+      try {
+        const response = await fetch('/api/vanish', {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to delete cleaning sessions');
+        }
+        
+        setLimpiezas([]);
+        setLimpiezaSeleccionada(null);
+      } catch (err) {
+        console.error('Error deleting cleaning sessions:', err);
+        alert('Failed to delete cleaning sessions. Please try again.');
+      }
     }
   }
 

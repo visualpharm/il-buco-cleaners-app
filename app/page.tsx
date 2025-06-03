@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -205,11 +205,20 @@ const CHECKLIST_ESCALERA = [
 ]
 
 // Simulación de validación IA con análisis detallado
+interface ValidacionIA {
+  esValida: boolean;
+  ignorado?: boolean;
+  analisis: {
+    esperaba: string;
+    encontro: string;
+  };
+}
+
 const validarFotoConIA = async (
   file: File,
   validacion: string,
   tipoFoto: any,
-): Promise<{ esValida: boolean; analisis: { esperaba: string; encontro: string } }> => {
+): Promise<ValidacionIA> => {
   // Simulación de delay de IA
   await new Promise((resolve) => setTimeout(resolve, 2000))
 
@@ -257,9 +266,10 @@ const validarFotoConIA = async (
 
   // 60% de probabilidad de estar correcto
   if (Math.random() > 0.4) {
-    return respuestasValidas[0]
+    return respuestasValidas[0];
   } else {
-    return respuestasInvalidas[Math.floor(Math.random() * respuestasInvalidas.length)]
+    const respuestaInvalida = respuestasInvalidas[Math.floor(Math.random() * respuestasInvalidas.length)];
+    return { ...respuestaInvalida, ignorado: false };
   }
 }
 
@@ -294,6 +304,75 @@ export default function LimpiezaPage() {
   const [esperandoCorreccion, setEsperandoCorreccion] = useState<boolean>(false)
   const [sesionActual, setSesionActual] = useState<SesionLimpieza | null>(null)
   const [fotoRequerida, setFotoRequerida] = useState<any>(null)
+  const [cleaningStats, setCleaningStats] = useState({
+    lastCleaned: null as Date | null,
+    spacesCleaned: 0,
+    totalTimeMinutes: 0,
+    loading: true
+  });
+
+  // Format minutes to HHh MMm
+  const formatDuration = (minutes: number) => {
+    if (!minutes) return '0m';
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
+
+  // Save a completed cleaning session
+  const saveCompletedSession = async (roomName: string, durationMinutes: number, stepsCompleted: number, totalSteps: number) => {
+    try {
+      await fetch('/api/cleaning-sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomName,
+          startTime: new Date(Date.now() - (durationMinutes * 60 * 1000)).toISOString(),
+          endTime: new Date().toISOString(),
+          stepsCompleted,
+          totalSteps,
+          durationMinutes
+        })
+      });
+      
+      // Refresh stats
+      const statsResponse = await fetch('/api/cleaning-stats');
+      if (statsResponse.ok) {
+        const data = await statsResponse.json();
+        setCleaningStats({
+          lastCleaned: data.lastCleaned ? new Date(data.lastCleaned) : null,
+          spacesCleaned: data.totalSpaces || 0,
+          totalTimeMinutes: data.totalTimeMinutes || 0,
+          loading: false
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save cleaning session:', error);
+    }
+  };
+  
+  // Load cleaning stats
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const response = await fetch('/api/cleaning-stats');
+        if (response.ok) {
+          const data = await response.json();
+          setCleaningStats({
+            lastCleaned: data.lastCleaned ? new Date(data.lastCleaned) : null,
+            spacesCleaned: data.totalSpaces || 0,
+            totalTimeMinutes: data.totalTimeMinutes || 0,
+            loading: false
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load cleaning stats:', error);
+        setCleaningStats(prev => ({ ...prev, loading: false }));
+      }
+    }
+
+    loadStats();
+  }, []);
 
   // Obtener checklist según tipo de habitación
   const obtenerChecklist = (tipo: string) => {
@@ -414,34 +493,89 @@ export default function LimpiezaPage() {
   }
 
   const completarPaso = async (foto?: File) => {
-    const step = CHECKLIST_STEPS[pasoActual]
-    const ahora = new Date()
-    const tipoFotoRequerida = verificarSiFotoRequerida(step.id)
+    const step = CHECKLIST_STEPS[pasoActual];
+    const ahora = new Date();
+    const tipoFotoRequerida = verificarSiFotoRequerida(step.id);
 
-    let validacion = undefined
-    let tipoFoto = undefined
-    let fotoUrl = undefined // <-- new
+    let validacion = undefined;
+    let tipoFoto = undefined;
+    let fotoUrl = undefined;
 
     if (foto && tipoFotoRequerida) {
-      setValidandoFoto(true)
-      // Upload image to disk and get URL
-      fotoUrl = await uploadImage(foto)
-      validacion = await validarFotoConIA(foto, tipoFotoRequerida.validacionIA, tipoFotoRequerida)
-      tipoFoto = tipoFotoRequerida.id
-      setValidandoFoto(false)
+      setValidandoFoto(true);
+      try {
+        // Upload image to disk and get URL
+        fotoUrl = await uploadImage(foto);
+        validacion = await validarFotoConIA(foto, tipoFotoRequerida.validacionIA, tipoFotoRequerida);
+        tipoFoto = tipoFotoRequerida.id;
 
-      // Marcar foto como pedida
-      if (sesionActual) {
-        setSesionActual({
-          ...sesionActual,
-          fotosPedidas: [...sesionActual.fotosPedidas, tipoFotoRequerida.id],
-        })
-      }
+        // Marcar foto como pedida
+        if (sesionActual) {
+          setSesionActual({
+            ...sesionActual,
+            fotosPedidas: [...sesionActual.fotosPedidas, tipoFotoRequerida.id],
+          });
+        }
 
-      if (!validacion.esValida) {
-        setEsperandoCorreccion(true)
-        return
+        // If validation failed and user didn't ignore, don't proceed
+        if (!validacion.esValida && !validacion.ignorado) {
+          setEsperandoCorreccion(true);
+          return;
+        }
+      } finally {
+        setValidandoFoto(false);
       }
+    }
+
+
+    // Update step data
+    setDatosLimpieza(prev => {
+      const updated = {
+        ...prev,
+        [step.id]: {
+          ...prev[step.id],
+          completado: true,
+          horaInicio: prev[step.id]?.horaInicio || ahora,
+          horaCompletado: ahora,
+          foto: fotoUrl,
+          validacionIA: validacion,
+          tipoFoto: tipoFoto,
+          corregido: validacion?.ignorado || false,
+          ignorado: validacion?.ignorado || false
+        }
+      };
+      
+      // Check if this was the last step
+    const allSteps = Object.keys(updated);
+    if (allSteps.length === CHECKLIST_STEPS.length) {
+      if (!habitacionSeleccionada) {
+        console.error('No se ha seleccionado una habitación');
+        return updated;
+      }
+      
+      const startTime = Object.values(updated).reduce((earliest: Date | null, step: any) => {
+        return (step.horaInicio && (!earliest || step.horaInicio < earliest)) ? step.horaInicio : earliest;
+      }, null as Date | null);
+      
+      const endTime = new Date();
+      const durationMinutes = startTime ? Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)) : 0;
+      
+      saveCompletedSession(
+        habitacionSeleccionada.nombre,
+        durationMinutes,
+        allSteps.length,
+        CHECKLIST_STEPS.length
+      );
+    }  
+      
+      return updated;
+    });
+
+    // Move to next step or complete
+    if (pasoActual < CHECKLIST_STEPS.length - 1) {
+      setPasoActual(pasoActual + 1);
+    } else {
+      setPasoActual(CHECKLIST_STEPS.length);
     }
 
     const tiempoTranscurrido = pasoActual > 0 ? ahora.getTime() - datosLimpieza[pasoActual].horaInicio.getTime() : 0
@@ -490,69 +624,97 @@ export default function LimpiezaPage() {
   }
 
   const confirmarCorreccion = () => {
-    setEsperandoCorreccion(false)
-    const datosActualizados = [...datosLimpieza]
-    datosActualizados[pasoActual] = {
-      ...datosActualizados[pasoActual],
-      corregido: true,
+    setEsperandoCorreccion(false);
+    const datosActualizados = [...datosLimpieza];
+    
+    if (datosActualizados[pasoActual]) {
+      datosActualizados[pasoActual] = {
+        ...datosActualizados[pasoActual],
+        corregido: true,
+      };
+      setDatosLimpieza(datosActualizados);
+      setFotoRequerida(null);
+      completarPaso();
+    } else {
+      console.error('Paso actual no encontrado en datosLimpieza');
     }
-    setDatosLimpieza(datosActualizados)
-    setFotoRequerida(null)
-    completarPaso()
-  }
+  };
 
   const ignorarCorreccion = () => {
-    setEsperandoCorreccion(false)
-    const datosActualizados = [...datosLimpieza]
-    datosActualizados[pasoActual] = {
-      ...datosActualizados[pasoActual],
-      ignorado: true,
+    setEsperandoCorreccion(false);
+    const datosActualizados = [...datosLimpieza];
+    
+    if (datosActualizados[pasoActual]) {
+      datosActualizados[pasoActual] = {
+        ...datosActualizados[pasoActual],
+        ignorado: true,
+      };
+      setDatosLimpieza(datosActualizados);
+      setFotoRequerida(null);
+      completarPaso();
+    } else {
+      console.error('Paso actual no encontrado en datosLimpieza');
     }
-    setDatosLimpieza(datosActualizados)
-    setFotoRequerida(null)
-    completarPaso()
   }
 
   const guardarLimpiezaIncompleta = (datos: StepData[]) => {
+    if (!habitacionSeleccionada) {
+      console.error('No se ha seleccionado una habitación');
+      return;
+    }
+
     const limpiezaIncompleta = {
       id: Date.now(),
       habitacion: habitacionSeleccionada.nombre,
       tipo: habitacionSeleccionada.tipo,
-      horaInicio: horaInicioLimpieza,
+      horaInicio: horaInicioLimpieza || new Date(),
       horaFin: new Date(),
       pasos: datos,
       sesionId: sesionActual?.id,
       completa: false,
       razon: "Pausa larga detectada (más de 1 hora)",
-    }
+    };
 
-    const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]")
-    limpiezasGuardadas.push(limpiezaIncompleta)
-    localStorage.setItem("limpiezas", JSON.stringify(limpiezasGuardadas))
+    try {
+      const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]");
+      limpiezasGuardadas.push(limpiezaIncompleta);
+      localStorage.setItem("limpiezas", JSON.stringify(limpiezasGuardadas));
+    } catch (error) {
+      console.error('Error al guardar limpieza incompleta:', error);
+    }
   }
 
   const guardarLimpiezaCompleta = (datos: StepData[]) => {
+    if (!habitacionSeleccionada) {
+      console.error('No se ha seleccionado una habitación');
+      return;
+    }
+
     const limpiezaCompleta = {
       id: Date.now(),
       habitacion: habitacionSeleccionada.nombre,
       tipo: habitacionSeleccionada.tipo,
-      horaInicio: horaInicioLimpieza,
+      horaInicio: horaInicioLimpieza || new Date(),
       horaFin: new Date(),
       pasos: datos,
       sesionId: sesionActual?.id,
       completa: true,
+    };
+
+    try {
+      const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]");
+      limpiezasGuardadas.push(limpiezaCompleta);
+      localStorage.setItem("limpiezas", JSON.stringify(limpiezasGuardadas));
+    } catch (error) {
+      console.error('Error al guardar limpieza completa:', error);
     }
 
-    const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]")
-    limpiezasGuardadas.push(limpiezaCompleta)
-    localStorage.setItem("limpiezas", JSON.stringify(limpiezasGuardadas))
-
     // Resetear para nueva limpieza
-    setHabitacionSeleccionada(null)
-    setPasoActual(0)
-    setDatosLimpieza([])
-    setHoraInicioLimpieza(null)
-    setFotoRequerida(null)
+    setHabitacionSeleccionada(null);
+    setPasoActual(0);
+    setDatosLimpieza([]);
+    setHoraInicioLimpieza(null);
+    setFotoRequerida(null);
   }
 
   // Agrupar habitaciones por piso
@@ -660,21 +822,36 @@ export default function LimpiezaPage() {
     )
   }
 
+  // Calculate last cleaning day and stats
+  const today = new Date();
+  const lastCleaningDay = new Date(today);
+  lastCleaningDay.setDate(today.getDate() - 1); // Default to yesterday
+  
+  // Format date as "Today", "Yesterday", or day name
+  const formatDate = (date: Date | null | undefined) => {
+    if (!date) return 'Never';
+    const today = new Date();
+    const diff = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    if (diff < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
+    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-md mx-auto min-h-[480px] flex flex-col">
-        {/* Header */}
+        
+        {/* Navigation */}
         <div className="flex items-center mb-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => {
               if (pasoActual > 0) {
-                // Go to previous step
-                setPasoActual(pasoActual - 1)
+                setPasoActual(pasoActual - 1);
               } else {
-                // If at first step, go back to menu
-                setHabitacionSeleccionada(null)
+                setHabitacionSeleccionada(null);
               }
             }}
           >
@@ -683,19 +860,19 @@ export default function LimpiezaPage() {
           <div className="flex-1 text-center">
             <h1 className="font-bold text-lg">{habitacionSeleccionada!.nombre}</h1>
             <p className="text-sm text-gray-600">
-              Paso {pasoActual + 1} de {CHECKLIST_STEPS.length} • {habitacionSeleccionada!.piso}
+              Step {pasoActual + 1} of {CHECKLIST_STEPS.length} • {habitacionSeleccionada!.piso}
             </p>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              guardarLimpiezaIncompleta(datosLimpieza)
-              setHabitacionSeleccionada(null)
+              guardarLimpiezaIncompleta(datosLimpieza);
+              setHabitacionSeleccionada(null);
             }}
             className="text-xs"
           >
-            Guardar
+            Save
           </Button>
         </div>
 
