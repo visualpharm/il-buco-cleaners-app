@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { formatTimeShort, formatDurationShort, formatDurationVerbose, formatDateDisplay, formatDateForUrl, isWeirdDuration, formatDateLocal, formatDateTitle } from "@/lib/dateUtils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,8 @@ interface StepData {
   corregido?: boolean
   ignorado?: boolean
   tipoFoto?: string
+  fallado?: boolean
+  fotoFalla?: string
 }
 
 interface LimpiezaCompleta {
@@ -159,9 +162,16 @@ export default function VanishPage() {
 
   // Helper function to navigate with URL params
   const navigateToDate = (fecha: Date, operaciones: LimpiezaCompleta[]) => {
-    const dateString = fecha.toISOString().split('T')[0] // YYYY-MM-DD format
+    const dateString = formatDateForUrl(fecha)
     router.push(`/vanish?date=${dateString}`)
     setFechaSeleccionada({ fecha, operaciones })
+  }
+
+  const navigateToRoom = (fecha: Date, limpieza: LimpiezaCompleta) => {
+    const dateString = formatDateForUrl(fecha)
+    const url = `/vanish?date=${dateString}&room=${encodeURIComponent(limpieza.habitacion)}&operation=${limpieza.id}`
+    router.push(url)
+    setLimpiezaSeleccionada(limpieza)
   }
 
   const navigateToHome = () => {
@@ -173,6 +183,9 @@ export default function VanishPage() {
   // Handle URL parameters on load and when they change
   useEffect(() => {
     const dateParam = searchParams.get('date')
+    const roomParam = searchParams.get('room')
+    const operationParam = searchParams.get('operation')
+    
     if (dateParam && limpiezas.length > 0) {
       const selectedDate = new Date(dateParam + 'T00:00:00')
       const gruposPorFecha = agruparPorFecha()
@@ -184,6 +197,17 @@ export default function VanishPage() {
           fecha: grupo.fecha,
           operaciones: grupo.operaciones
         })
+        
+        // If room and operation are specified, select the specific operation
+        if (roomParam && operationParam) {
+          const operacion = grupo.operaciones.find(op => 
+            op.habitacion === decodeURIComponent(roomParam) && 
+            op.id.toString() === operationParam
+          )
+          if (operacion) {
+            setLimpiezaSeleccionada(operacion)
+          }
+        }
       }
     }
   }, [searchParams, limpiezas])
@@ -222,62 +246,60 @@ export default function VanishPage() {
     fetchLimpiezas();
   }, [])
 
-  const formatearTiempo = (ms: number) => {
-    const minutos = Math.floor(ms / 60000)
-    const segundos = Math.floor((ms % 60000) / 1000)
-    return `${minutos}m ${segundos}s`
-  }
-
-  const formatDuration = (ms: number) => {
-    const minutos = Math.floor(ms / 60000)
-    const segundos = Math.floor((ms % 60000) / 1000)
-    return `${minutos}:${segundos.toString().padStart(2, '0')}`
-  }
-
-  const formatDate = (date: Date) => {
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    
-    const isSameDay = (d1: Date, d2: Date) => 
-      d1.getDate() === d2.getDate() && 
-      d1.getMonth() === d2.getMonth() && 
-      d1.getFullYear() === d2.getFullYear()
-    
-    const timeStr = date.toTimeString().slice(0, 5) // HH:MM format
-    
-    if (isSameDay(date, today)) {
-      return `Today ${timeStr}`
-    } else if (isSameDay(date, yesterday)) {
-      return `Yesterday ${timeStr}`
-    } else {
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      return `${monthNames[date.getMonth()]} ${date.getDate()}, ${timeStr}`
-    }
-  }
-
-  const isWeirdDuration = (ms: number) => {
-    return ms < 10000 || ms > 600000 // Less than 10 seconds or more than 10 minutes
-  }
 
   const calcularResumen = (limpieza: LimpiezaCompleta) => {
     const tiempoTotal = limpieza.horaFin.getTime() - limpieza.horaInicio.getTime()
-    const correcciones = limpieza.pasos.filter(
-      (p) => p.corregido || p.ignorado || (p.validacionIA && !p.validacionIA.esValida),
-    ).length
+    
+    // Calculate success percentage (100% - % of failures)
+    const totalPasos = limpieza.pasos.length
+    const pasosFallados = limpieza.pasos.filter(p => p.fallado).length
+    const porcentajeFallas = totalPasos > 0 ? Math.round((pasosFallados / totalPasos) * 100) : 0
+    const porcentajeExitos = 100 - porcentajeFallas
 
-    const checklistCompleto = obtenerChecklist(limpieza.tipo || "habitacion")
-    const pasosCompletados = limpieza.pasos.filter((p) => p.horaCompletado).length
-    const pasosIncompletos = checklistCompleto.length - pasosCompletados
+    // Calculate average step duration from all operations for comparison
+    const calcularPromedioGlobal = () => {
+      const todasLasDuraciones: number[] = []
+      limpiezas.forEach(operacion => {
+        operacion.pasos.forEach(paso => {
+          if (paso.tiempoTranscurrido && paso.tiempoTranscurrido > 0) {
+            todasLasDuraciones.push(paso.tiempoTranscurrido)
+          }
+        })
+      })
+      return todasLasDuraciones.length > 0 
+        ? todasLasDuraciones.reduce((sum, dur) => sum + dur, 0) / todasLasDuraciones.length 
+        : 0
+    }
+
+    // Find the longest operation compared to global average
+    const promedioGlobal = calcularPromedioGlobal()
+    let operacionMasLarga: { duracion: string; paso: string } | null = null
+    
+    if (promedioGlobal > 0) {
+      let mayorDuracion = 0
+      let pasoMasLargo = ""
+      
+      limpieza.pasos.forEach((paso, index) => {
+        if (paso.tiempoTranscurrido && paso.tiempoTranscurrido > promedioGlobal && paso.tiempoTranscurrido > mayorDuracion) {
+          mayorDuracion = paso.tiempoTranscurrido
+          const checklistCompleto = obtenerChecklist(limpieza.tipo || "habitacion")
+          const stepInfo = checklistCompleto[index]
+          pasoMasLargo = stepInfo ? `Paso ${index + 1}: ${stepInfo.categoria}` : `Paso ${index + 1}`
+        }
+      })
+      
+      if (mayorDuracion > 0) {
+        operacionMasLarga = {
+          duracion: formatDurationShort(mayorDuracion),
+          paso: pasoMasLargo
+        }
+      }
+    }
 
     return {
-      tiempoTotal: formatearTiempo(tiempoTotal),
-      correcciones,
-      pasosIncompletos,
-      pasosCompletados,
-      totalPasos: checklistCompleto.length,
-      porcentajeCompletado: Math.round((pasosCompletados / checklistCompleto.length) * 100),
+      tiempoTotal: formatDurationVerbose(tiempoTotal),
+      porcentajeExitos,
+      operacionMasLarga
     }
   }
 
@@ -307,6 +329,95 @@ export default function VanishPage() {
     return sesiones
   }
 
+  const calcularEstadisticasDia = (operacionesDia: LimpiezaCompleta[]) => {
+    if (operacionesDia.length === 0) {
+      return {
+        tiempoTotal: "0m 0s",
+        porcentajeExitos: 100,
+        habitacionMasLarga: null
+      }
+    }
+
+    // Calculate total time for the day
+    const tiempoTotalDia = operacionesDia.reduce((total, operacion) => 
+      total + (operacion.horaFin.getTime() - operacion.horaInicio.getTime()), 0
+    )
+
+    // Calculate success percentage (operations and steps without failures)
+    const totalOperaciones = operacionesDia.length
+    const operacionesFalladas = operacionesDia.filter(op => op.fallado).length
+    const totalPasos = operacionesDia.reduce((total, op) => total + op.pasos.length, 0)
+    const pasosFallados = operacionesDia.reduce((total, op) => 
+      total + op.pasos.filter(paso => paso.fallado).length, 0
+    )
+    
+    // Calculate overall success rate considering both operation and step failures
+    const fallasTotales = operacionesFalladas + pasosFallados
+    const elementosTotales = totalOperaciones + totalPasos
+    const porcentajeExitos = elementosTotales > 0 
+      ? Math.round(((elementosTotales - fallasTotales) / elementosTotales) * 100)
+      : 100
+
+    // Calculate global average room duration for comparison
+    const calcularPromedioGlobalHabitaciones = () => {
+      const duracionesPorTipo: { [tipo: string]: number[] } = {}
+      
+      limpiezas.forEach(operacion => {
+        const tipo = operacion.tipo || 'habitacion'
+        const duracion = operacion.horaFin.getTime() - operacion.horaInicio.getTime()
+        
+        if (!duracionesPorTipo[tipo]) {
+          duracionesPorTipo[tipo] = []
+        }
+        duracionesPorTipo[tipo].push(duracion)
+      })
+
+      const promedios: { [tipo: string]: number } = {}
+      Object.keys(duracionesPorTipo).forEach(tipo => {
+        const duraciones = duracionesPorTipo[tipo]
+        promedios[tipo] = duraciones.reduce((sum, dur) => sum + dur, 0) / duraciones.length
+      })
+
+      return promedios
+    }
+
+    // Find the room that took unusually long compared to average
+    const promediosGlobales = calcularPromedioGlobalHabitaciones()
+    let habitacionMasLarga: { duracion: string; nombre: string } | null = null
+    
+    let mayorExceso = 0
+    let habitacionMasLenta = ""
+    let duracionMasLarga = 0
+
+    operacionesDia.forEach(operacion => {
+      const tipo = operacion.tipo || 'habitacion'
+      const duracionOperacion = operacion.horaFin.getTime() - operacion.horaInicio.getTime()
+      const promedioTipo = promediosGlobales[tipo]
+      
+      if (promedioTipo && duracionOperacion > promedioTipo) {
+        const exceso = duracionOperacion - promedioTipo
+        if (exceso > mayorExceso) {
+          mayorExceso = exceso
+          habitacionMasLenta = operacion.habitacion
+          duracionMasLarga = duracionOperacion
+        }
+      }
+    })
+
+    if (mayorExceso > 0) {
+      habitacionMasLarga = {
+        duracion: formatDurationShort(duracionMasLarga),
+        nombre: habitacionMasLenta
+      }
+    }
+
+    return {
+      tiempoTotal: formatDurationVerbose(tiempoTotalDia),
+      porcentajeExitos,
+      habitacionMasLarga
+    }
+  }
+
   const calcularEstadisticas30Dias = () => {
     const hace30Dias = new Date()
     hace30Dias.setDate(hace30Dias.getDate() - 30)
@@ -315,26 +426,49 @@ export default function VanishPage() {
     
     if (limpiezasRecientes.length === 0) {
       return {
-        totalLimpiezas: 0,
-        tiempoTotalSesiones: "0:00",
-        tiempoPromedioOperacion: "0 min",
-        habitacionesUnicas: 0
+        limpiezaCadaDias: "0",
+        tiempoPromedioTotal: "0:00",
+        tiempoPromedioHabitacion: "0 min",
+        porcentajeExito: 100
       }
     }
     
-    // Group by day to calculate session times
-    const sesiones = agruparEnSesiones(limpiezasRecientes)
-    const tiempoTotalSesiones = sesiones.reduce((total, sesion) => {
-      const inicio = sesion[0].horaInicio.getTime()
-      const fin = sesion[sesion.length - 1].horaFin.getTime()
-      return total + (fin - inicio)
-    }, 0)
+    // 1. Limpieza cada X días - Calculate frequency based on actual time period
+    const gruposPorFecha = agruparPorFecha()
+    const fechasConLimpieza = gruposPorFecha.filter(grupo => grupo.operaciones.length > 0)
+    const diasConLimpieza = fechasConLimpieza.length
     
-    const horas = Math.floor(tiempoTotalSesiones / 3600000)
-    const minutos = Math.floor((tiempoTotalSesiones % 3600000) / 60000)
-    const tiempoTotalSesionesStr = `${horas}:${minutos.toString().padStart(2, '0')}`
+    let limpiezaCadaDias = "0"
+    if (diasConLimpieza > 0 && limpiezas.length > 0) {
+      // Find the first cleaning date
+      const primeraLimpieza = new Date(Math.min(...limpiezas.map(l => l.horaInicio.getTime())))
+      const ahora = new Date()
+      
+      // Calculate days passed since first cleaning
+      const diasTranscurridos = Math.max(1, Math.ceil((ahora.getTime() - primeraLimpieza.getTime()) / (24 * 60 * 60 * 1000)))
+      
+      // Use actual period or 30 days, whichever is smaller
+      const periodoAnalisis = Math.min(diasTranscurridos, 30)
+      
+      // Calculate frequency
+      const frecuencia = Math.round(periodoAnalisis / diasConLimpieza)
+      limpiezaCadaDias = frecuencia.toString()
+    }
     
-    // Average time per operation (excluding escalera)
+    // 2. Tiempo promedio total - Average total session time per day with cleaning
+    const tiemposTotalesPorDia = fechasConLimpieza.map(grupo => {
+      const tiempoTotalDia = grupo.operaciones.reduce((total, op) => 
+        total + (op.horaFin.getTime() - op.horaInicio.getTime()), 0
+      )
+      return tiempoTotalDia
+    })
+    
+    const tiempoPromedioTotalMs = tiemposTotalesPorDia.length > 0 
+      ? tiemposTotalesPorDia.reduce((sum, tiempo) => sum + tiempo, 0) / tiemposTotalesPorDia.length
+      : 0
+    const tiempoPromedioTotal = formatDurationShort(tiempoPromedioTotalMs)
+    
+    // 3. Tiempo promedio por habitación (excluding escalera)
     const operacionesHabitacion = limpiezasRecientes.filter(l => {
       const tipo = l.tipo || 'habitacion'
       return tipo !== 'escalera'
@@ -342,24 +476,36 @@ export default function VanishPage() {
     
     const operacionesParaPromedio = operacionesHabitacion.length > 0 ? operacionesHabitacion : limpiezasRecientes
     
+    let tiempoPromedioHabitacion = "0 min"
     if (operacionesParaPromedio.length > 0) {
       const tiempoTotalOperaciones = operacionesParaPromedio.reduce((total, l) => 
         total + (l.horaFin.getTime() - l.horaInicio.getTime()), 0
       )
       const tiempoPromedio = tiempoTotalOperaciones / operacionesParaPromedio.length
       const minutosPromedio = Math.round(tiempoPromedio / 60000)
-      var tiempoPromedioOperacion = `${minutosPromedio} min`
-    } else {
-      var tiempoPromedioOperacion = "0 min"
+      tiempoPromedioHabitacion = `${minutosPromedio} min`
     }
     
-    const habitacionesUnicas = new Set(limpiezasRecientes.map(l => l.habitacion)).size
+    // 4. % de éxito - Calculate success percentage considering both operations and steps
+    const totalOperaciones = limpiezasRecientes.length
+    const operacionesFalladas = limpiezasRecientes.filter(op => op.fallado).length
+    const totalPasos = limpiezasRecientes.reduce((total, op) => total + op.pasos.length, 0)
+    const pasosFallados = limpiezasRecientes.reduce((total, op) => 
+      total + op.pasos.filter(paso => paso.fallado).length, 0
+    )
+    
+    // Calculate overall success rate
+    const fallasTotales = operacionesFalladas + pasosFallados
+    const elementosTotales = totalOperaciones + totalPasos
+    const porcentajeExito = elementosTotales > 0 
+      ? Math.round(((elementosTotales - fallasTotales) / elementosTotales) * 100)
+      : 100
     
     return {
-      totalLimpiezas: limpiezasRecientes.length,
-      tiempoTotalSesiones: tiempoTotalSesionesStr,
-      tiempoPromedioOperacion,
-      habitacionesUnicas
+      limpiezaCadaDias,
+      tiempoPromedioTotal,
+      tiempoPromedioHabitacion,
+      porcentajeExito
     }
   }
 
@@ -484,6 +630,122 @@ export default function VanishPage() {
     }
   };
 
+  const handleStepToggleFallado = async (stepId: number, fallado: boolean) => {
+    if (!limpiezaSeleccionada) return;
+
+    try {
+      // Update the operation with the step failure status
+      const response = await fetch('/api/vanish', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operacionId: limpiezaSeleccionada.id,
+          stepId,
+          stepFallado: fallado,
+          stepFotoFalla: !fallado ? null : undefined // Clear photo when marking as complete
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update step status');
+      }
+
+      // Update local state
+      const updatedLimpieza = {
+        ...limpiezaSeleccionada,
+        pasos: limpiezaSeleccionada.pasos.map(paso =>
+          paso.id === stepId
+            ? { ...paso, fallado, ...(fallado ? {} : { fotoFalla: undefined }) }
+            : paso
+        )
+      };
+
+      setLimpiezaSeleccionada(updatedLimpieza);
+      
+      setLimpiezas(prev => prev.map(limpieza => 
+        limpieza.id === limpiezaSeleccionada.id ? updatedLimpieza : limpieza
+      ));
+
+      if (fechaSeleccionada) {
+        setFechaSeleccionada(prev => prev ? {
+          ...prev,
+          operaciones: prev.operaciones.map(op => 
+            op.id === limpiezaSeleccionada.id ? updatedLimpieza : op
+          )
+        } : null);
+      }
+    } catch (err) {
+      console.error('Error updating step status:', err);
+      alert('Failed to update step status. Please try again.');
+    }
+  };
+
+  const handleStepFallaPhoto = async (stepId: number, file: File | undefined) => {
+    if (!file || !limpiezaSeleccionada) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('operacionId', limpiezaSeleccionada.id.toString());
+      formData.append('stepId', stepId.toString());
+      formData.append('type', 'step-falla');
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload step failure photo');
+      }
+
+      const { url } = await response.json();
+
+      // Update the operation with the step photo URL
+      await fetch('/api/vanish', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operacionId: limpiezaSeleccionada.id,
+          stepId,
+          stepFotoFalla: url
+        }),
+      });
+
+      // Update local state
+      const updatedLimpieza = {
+        ...limpiezaSeleccionada,
+        pasos: limpiezaSeleccionada.pasos.map(paso =>
+          paso.id === stepId
+            ? { ...paso, fotoFalla: url }
+            : paso
+        )
+      };
+
+      setLimpiezaSeleccionada(updatedLimpieza);
+      
+      setLimpiezas(prev => prev.map(limpieza => 
+        limpieza.id === limpiezaSeleccionada.id ? updatedLimpieza : limpieza
+      ));
+
+      if (fechaSeleccionada) {
+        setFechaSeleccionada(prev => prev ? {
+          ...prev,
+          operaciones: prev.operaciones.map(op => 
+            op.id === limpiezaSeleccionada.id ? updatedLimpieza : op
+          )
+        } : null);
+      }
+    } catch (err) {
+      console.error('Error uploading step failure photo:', err);
+      alert('Failed to upload step failure photo. Please try again.');
+    }
+  };
+
   const limpiarDatos = async () => {
     if (confirm("¿Estás seguro de que quieres borrar todos los datos de limpieza?")) {
       try {
@@ -504,6 +766,240 @@ export default function VanishPage() {
     }
   }
 
+  if (limpiezaSeleccionada) {
+    const resumen = calcularResumen(limpiezaSeleccionada)
+    const checklistCompleto = obtenerChecklist(limpiezaSeleccionada.tipo || "habitacion")
+
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <Button variant="outline" onClick={() => {
+              if (fechaSeleccionada) {
+                // Navigate back to the date view, removing room and operation params
+                const dateString = formatDateForUrl(fechaSeleccionada.fecha)
+                router.push(`/vanish?date=${dateString}`)
+                setLimpiezaSeleccionada(null)
+              } else {
+                // Navigate to home if no date was selected
+                navigateToHome()
+              }
+            }}>
+              ← {fechaSeleccionada ? 'Back to Date View' : 'Volver a reportes'}
+            </Button>
+            <div className="text-right">
+              <h1 className="text-2xl font-bold">{limpiezaSeleccionada.habitacion}</h1>
+              <p className="text-gray-600">
+                {formatDateLocal(limpiezaSeleccionada.horaInicio)} - {formatTimeShort(limpiezaSeleccionada.horaInicio)}
+              </p>
+              {!limpiezaSeleccionada.completa && (
+                <Badge variant="destructive" className="mt-1">
+                  Incompleta - {limpiezaSeleccionada.razon}
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {/* Resumen */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Estadísticas de Limpieza</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{resumen.tiempoTotal}</div>
+                  <div className="text-sm text-gray-600">Tiempo Total</div>
+                  <div className="text-xs text-gray-400 mt-1" title="Duración total de esta operación de limpieza desde inicio hasta fin.">
+                    ℹ️ Inicio a fin de operación
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{resumen.porcentajeExitos}%</div>
+                  <div className="text-sm text-gray-600">% de Éxitos</div>
+                  <div className="text-xs text-gray-400 mt-1" title="Porcentaje de pasos completados sin marcar como fallados en esta operación.">
+                    ℹ️ Pasos sin fallas
+                  </div>
+                </div>
+                <div className="text-center">
+                  {resumen.operacionMasLarga ? (
+                    <div>
+                      <div className="text-2xl font-bold text-orange-600">{resumen.operacionMasLarga.duracion}</div>
+                      <div className="text-sm text-gray-600">Operación más larga</div>
+                      <div className="text-xs text-gray-500">{resumen.operacionMasLarga.paso}</div>
+                      <div className="text-xs text-gray-400 mt-1" title="Paso que tardó más tiempo comparado con el promedio global de todos los pasos.">
+                        ℹ️ Vs promedio global de pasos
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-2xl font-bold text-gray-400">-</div>
+                      <div className="text-sm text-gray-600">Operación más larga</div>
+                      <div className="text-xs text-gray-400 mt-1" title="Paso que tardó más tiempo comparado con el promedio global de todos los pasos.">
+                        ℹ️ Vs promedio global de pasos
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pasos detallados */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Detalles de los Pasos de Limpieza</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <table style={{width: '100%', borderCollapse: 'collapse', border: '1px solid #ccc'}}>
+                <thead>
+                  <tr style={{backgroundColor: '#f5f5f5'}}>
+                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Paso</td>
+                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Categoría</td>
+                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Tarea</td>
+                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Estado</td>
+                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Hora Inicio</td>
+                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Duración</td>
+                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Falla</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {checklistCompleto.map((step, index) => {
+                    const pasoData = limpiezaSeleccionada.pasos.find((p) => p.id === step.id)
+                    
+                    return (
+                      <tr key={step.id}>
+                        <td style={{padding: '12px', border: '1px solid #ccc', textAlign: 'center'}}>
+                          {index + 1}
+                        </td>
+                        <td style={{padding: '12px', border: '1px solid #ccc'}}>
+                          {step.categoria}
+                        </td>
+                        <td style={{padding: '12px', border: '1px solid #ccc'}}>
+                          {step.texto.includes(":") && step.texto.split(":")[1].includes(",") ? (
+                            <div>
+                              <div style={{fontWeight: 'bold', marginBottom: '4px'}}>{step.texto.split(":")[0]}:</div>
+                              <ul style={{margin: 0, paddingLeft: '20px'}}>
+                                {step.texto
+                                  .split(":")[1]
+                                  .split(",")
+                                  .map((item, idx) => (
+                                    <li key={idx}>{item.trim()}</li>
+                                  ))}
+                              </ul>
+                            </div>
+                          ) : (
+                            step.texto
+                          )}
+                        </td>
+                        <td style={{padding: '12px', border: '1px solid #ccc', textAlign: 'center'}}>
+                          {pasoData?.horaCompletado ? (
+                            <span style={{color: 'green', fontSize: '18px'}}>✓</span>
+                          ) : pasoData ? (
+                            <span style={{color: 'orange', fontSize: '18px'}}>⏸</span>
+                          ) : (
+                            <span style={{color: 'red', fontSize: '18px'}}>⚠</span>
+                          )}
+                        </td>
+                        <td style={{padding: '12px', border: '1px solid #ccc', fontSize: '14px', fontFamily: 'monospace'}}>
+                          {pasoData ? formatTimeShort(pasoData.horaInicio) : '-'}
+                        </td>
+                        <td style={{padding: '12px', border: '1px solid #ccc', fontSize: '14px', fontFamily: 'monospace'}}>
+                          {pasoData?.tiempoTranscurrido ? formatDurationShort(pasoData.tiempoTranscurrido) : '-'}
+                        </td>
+                        <td style={{padding: '12px', border: '1px solid #ccc', textAlign: 'center'}}>
+                          {pasoData ? (
+                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}>
+                              {pasoData.fallado ? (
+                                <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                  <span style={{color: 'red', fontSize: '14px', fontWeight: 'bold'}}>Fallado</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={(e) => handleStepFallaPhoto(step.id, e.target.files?.[0])}
+                                    style={{display: 'none'}}
+                                    id={`step-falla-photo-${step.id}`}
+                                  />
+                                  <label
+                                    htmlFor={`step-falla-photo-${step.id}`}
+                                    style={{
+                                      cursor: 'pointer',
+                                      padding: '4px',
+                                      border: '1px solid #ccc',
+                                      borderRadius: '4px',
+                                      backgroundColor: '#f8f9fa',
+                                      display: 'flex',
+                                      alignItems: 'center'
+                                    }}
+                                    title="Take photo of step failure"
+                                  >
+                                    📷
+                                  </label>
+                                  {pasoData.fotoFalla && (
+                                    <img
+                                      src={pasoData.fotoFalla}
+                                      alt="Step failure photo"
+                                      style={{
+                                        width: '24px',
+                                        height: '24px',
+                                        objectFit: 'cover',
+                                        border: '1px solid #ccc',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer'
+                                      }}
+                                      onClick={() => window.open(pasoData.fotoFalla, '_blank')}
+                                    />
+                                  )}
+                                  <button
+                                    onClick={() => handleStepToggleFallado(step.id, false)}
+                                    style={{
+                                      fontSize: '12px',
+                                      color: 'green',
+                                      textDecoration: 'underline',
+                                      border: 'none',
+                                      background: 'none',
+                                      cursor: 'pointer'
+                                    }}
+                                    title="Mark as complete"
+                                  >
+                                    ✓ OK
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => handleStepToggleFallado(step.id, true)}
+                                  style={{
+                                    fontSize: '12px',
+                                    color: 'red',
+                                    textDecoration: 'underline',
+                                    border: 'none',
+                                    background: 'none',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Mark as failed"
+                                >
+                                  Marcar falla
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{color: 'gray', fontSize: '12px'}}>-</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   if (fechaSeleccionada) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -515,13 +1011,58 @@ export default function VanishPage() {
             </Button>
             <div className="text-right">
               <h1 className="text-2xl font-bold">
-                Operations for {formatDate(fechaSeleccionada.fecha)}
+                Limpieza de {formatDateTitle(fechaSeleccionada.fecha)}
               </h1>
               <p className="text-gray-600">
                 {fechaSeleccionada.operaciones.length} operations completed
               </p>
             </div>
           </div>
+
+          {/* Estadísticas del día */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Estadísticas del Día</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{calcularEstadisticasDia(fechaSeleccionada.operaciones).tiempoTotal}</div>
+                  <div className="text-sm text-gray-600">Tiempo Total</div>
+                  <div className="text-xs text-gray-400 mt-1" title="Suma de todas las duraciones de limpieza del día.">
+                    ℹ️ Todas las operaciones del día
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{calcularEstadisticasDia(fechaSeleccionada.operaciones).porcentajeExitos}%</div>
+                  <div className="text-sm text-gray-600">% de Éxitos</div>
+                  <div className="text-xs text-gray-400 mt-1" title="Porcentaje de operaciones y pasos completados sin fallas. Cuenta tanto operaciones falladas como pasos individuales fallados.">
+                    ℹ️ Sin fallas (ops + pasos)
+                  </div>
+                </div>
+                <div className="text-center">
+                  {calcularEstadisticasDia(fechaSeleccionada.operaciones).habitacionMasLarga ? (
+                    <div>
+                      <div className="text-2xl font-bold text-orange-600">{calcularEstadisticasDia(fechaSeleccionada.operaciones).habitacionMasLarga?.duracion}</div>
+                      <div className="text-sm text-gray-600">Habitación más lenta</div>
+                      <div className="text-xs text-gray-500">{calcularEstadisticasDia(fechaSeleccionada.operaciones).habitacionMasLarga?.nombre}</div>
+                      <div className="text-xs text-gray-400 mt-1" title="Habitación que tardó más tiempo comparado con el promedio histórico de su tipo.">
+                        ℹ️ Vs promedio histórico por tipo
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-2xl font-bold text-gray-400">-</div>
+                      <div className="text-sm text-gray-600">Habitación más lenta</div>
+                      <div className="text-xs text-gray-400 mt-1" title="Habitación que tardó más tiempo comparado con el promedio histórico de su tipo.">
+                        ℹ️ Vs promedio histórico por tipo
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Operations Table */}
           <Card>
@@ -537,19 +1078,25 @@ export default function VanishPage() {
                       <th className="text-left p-3 font-medium">Duration</th>
                       <th className="text-left p-3 font-medium">Photos</th>
                       <th className="text-left p-3 font-medium">Status</th>
-                      <th className="text-left p-3 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {fechaSeleccionada.operaciones.map((limpieza) => (
                       <tr key={limpieza.id} className="border-b hover:bg-gray-50">
-                        <td className="p-3 font-medium">{limpieza.habitacion}</td>
+                        <td className="p-3 font-medium">
+                          <button
+                            className="text-blue-600 hover:text-blue-800 underline font-medium"
+                            onClick={() => navigateToRoom(fechaSeleccionada.fecha, limpieza)}
+                          >
+                            {limpieza.habitacion}
+                          </button>
+                        </td>
                         <td className="p-3">
                           <Badge variant="secondary" className="capitalize">{limpieza.tipo}</Badge>
                         </td>
-                        <td className="p-3 font-mono text-sm">{limpieza.horaInicio.toLocaleTimeString()}</td>
-                        <td className="p-3 font-mono text-sm">{limpieza.horaFin.toLocaleTimeString()}</td>
-                        <td className="p-3 font-mono text-sm">{formatDuration(limpieza.horaFin.getTime() - limpieza.horaInicio.getTime())}</td>
+                        <td className="p-3 font-mono text-sm">{formatTimeShort(limpieza.horaInicio)}</td>
+                        <td className="p-3 font-mono text-sm">{formatTimeShort(limpieza.horaFin)}</td>
+                        <td className="p-3 font-mono text-sm">{formatDurationShort(limpieza.horaFin.getTime() - limpieza.horaInicio.getTime())}</td>
                         <td className="p-3">
                           <div className="flex items-center space-x-1">
                             <span className="text-sm">{limpieza.pasos.filter(p => p.foto).length}</span>
@@ -631,15 +1178,6 @@ export default function VanishPage() {
                             )}
                           </div>
                         </td>
-                        <td className="p-3">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setLimpiezaSeleccionada(limpieza)}
-                          >
-                            View Details
-                          </Button>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -647,219 +1185,6 @@ export default function VanishPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
-    )
-  }
-
-  if (limpiezaSeleccionada) {
-    const resumen = calcularResumen(limpiezaSeleccionada)
-    const checklistCompleto = obtenerChecklist(limpiezaSeleccionada.tipo || "habitacion")
-
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <Button variant="outline" onClick={() => {
-              setLimpiezaSeleccionada(null)
-              if (fechaSeleccionada) {
-                // Return to date view if we came from there - URL will be preserved
-                return
-              } else {
-                // Navigate to home if no date was selected
-                navigateToHome()
-              }
-            }}>
-              ← {fechaSeleccionada ? 'Back to Date View' : 'Volver a reportes'}
-            </Button>
-            <div className="text-right">
-              <h1 className="text-2xl font-bold">{limpiezaSeleccionada.habitacion}</h1>
-              <p className="text-gray-600">
-                {limpiezaSeleccionada.horaInicio.toLocaleDateString()} -{" "}
-                {limpiezaSeleccionada.horaInicio.toLocaleTimeString()}
-              </p>
-              {!limpiezaSeleccionada.completa && (
-                <Badge variant="destructive" className="mt-1">
-                  Incompleta - {limpiezaSeleccionada.razon}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {/* Resumen */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Resumen de Limpieza</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{resumen.tiempoTotal}</div>
-                  <div className="text-sm text-gray-600">Tiempo Total</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{resumen.porcentajeCompletado}%</div>
-                  <div className="text-sm text-gray-600">Completado</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-600">{resumen.correcciones}</div>
-                  <div className="text-sm text-gray-600">Correcciones</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-red-600">{resumen.pasosIncompletos}</div>
-                  <div className="text-sm text-gray-600">Faltantes</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Pasos detallados */}
-          <div className="space-y-4">
-            {checklistCompleto.map((step, index) => {
-              const pasoData = limpiezaSeleccionada.pasos.find((p) => p.id === step.id)
-
-              return (
-                <Card key={step.id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Badge variant="secondary">{step.categoria}</Badge>
-                        {pasoData?.horaCompletado ? (
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                        ) : pasoData ? (
-                          <Pause className="w-5 h-5 text-yellow-600" />
-                        ) : (
-                          <AlertTriangle className="w-5 h-5 text-red-600" />
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-500">Paso {index + 1}</div>
-                    </div>
-                    <CardTitle className="text-lg">
-                      {step.texto.includes(":") && step.texto.split(":")[1].includes(",") ? (
-                        <div>
-                          <div className="mb-2">{step.texto.split(":")[0]}:</div>
-                          <ul className="list-disc list-inside space-y-1 text-base font-normal">
-                            {step.texto
-                              .split(":")[1]
-                              .split(",")
-                              .map((item, index) => (
-                                <li key={index} className="text-gray-700">
-                                  {item.trim()}
-                                </li>
-                              ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        step.texto
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {pasoData ? (
-                      <div className="space-y-3">
-                        {/* Tiempos */}
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium">Inicio:</span> {pasoData.horaInicio.toLocaleTimeString()}
-                          </div>
-                          {pasoData.horaCompletado && (
-                            <div>
-                              <span className="font-medium">Completado:</span>{" "}
-                              {pasoData.horaCompletado.toLocaleTimeString()}
-                            </div>
-                          )}
-                        </div>
-
-                        {pasoData.tiempoTranscurrido && (
-                          <div className="text-sm">
-                            <span className="font-medium">Tiempo empleado:</span>{" "}
-                            {formatearTiempo(pasoData.tiempoTranscurrido)}
-                            {pasoData.tiempoTranscurrido > 3600000 && (
-                              <Badge variant="outline" className="ml-2 text-orange-600 border-orange-600">
-                                Pausa larga detectada
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Foto y validación IA */}
-                        {pasoData.foto && (
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <Camera className="w-4 h-4" />
-                              <span className="text-sm font-medium">
-                                Foto:{" "}
-                                {pasoData.tipoFoto
-                                  ? TIPOS_FOTOS.find((t) => t.id === pasoData.tipoFoto)?.titulo || "Foto requerida"
-                                  : "Foto requerida"}
-                              </span>
-                            </div>
-
-                            <Image
-                              src={pasoData.foto || "/placeholder.svg"}
-                              alt="Foto del paso"
-                              width={200}
-                              height={150}
-                              className="rounded-lg border"
-                            />
-
-                            {pasoData.validacionIA && (
-                              <div
-                                className={`p-3 rounded-lg ${pasoData.validacionIA.esValida ? "bg-green-100" : "bg-red-100"}`}
-                              >
-                                <div className="flex items-start">
-                                  {pasoData.validacionIA.esValida ? (
-                                    <CheckCircle className="w-5 h-5 text-green-600 mr-2 mt-0.5" />
-                                  ) : (
-                                    <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
-                                  )}
-                                  <div className="flex-1">
-                                    <div
-                                      className={`text-sm ${pasoData.validacionIA.esValida ? "text-green-800" : "text-red-800"}`}
-                                    >
-                                      <div className="font-medium mb-2">Análisis de IA:</div>
-                                      <div className="mb-1">
-                                        <strong>Esperaba ver:</strong> {pasoData.validacionIA.analisis.esperaba}
-                                      </div>
-                                      <div>
-                                        <strong>Encontré:</strong> {pasoData.validacionIA.analisis.encontro}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {(pasoData.corregido || pasoData.ignorado) && (
-                              <div className="flex space-x-2">
-                                {pasoData.corregido && (
-                                  <Badge variant="outline" className="text-orange-600 border-orange-600">
-                                    Corregido manualmente
-                                  </Badge>
-                                )}
-                                {pasoData.ignorado && (
-                                  <Badge variant="outline" className="text-blue-600 border-blue-600">
-                                    Ignorado por el usuario
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {!pasoData.horaCompletado && (
-                          <div className="text-yellow-600 text-sm italic">⏸️ Paso iniciado pero no completado</div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-red-600 text-sm">⚠️ Paso no iniciado</div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
         </div>
       </div>
     )
@@ -882,32 +1207,44 @@ export default function VanishPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <Card>
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">{estadisticas30Dias.totalLimpiezas}</div>
-              <div className="text-sm text-gray-600">Total Operations (30d)</div>
+              <div className="text-2xl font-bold text-blue-600">{estadisticas30Dias.limpiezaCadaDias}</div>
+              <div className="text-sm text-gray-600">Limpieza cada X días</div>
+              <div className="text-xs text-gray-400 mt-1" title="Días transcurridos desde la primera limpieza dividido por número de días con limpieza. Máximo 30 días de análisis.">
+                ℹ️ Frecuencia desde inicio
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-green-600">
-                {estadisticas30Dias.tiempoTotalSesiones}
+                {estadisticas30Dias.tiempoPromedioTotal}
               </div>
-              <div className="text-sm text-gray-600">Total Session Time (30d)</div>
+              <div className="text-sm text-gray-600">Tiempo promedio total</div>
+              <div className="text-xs text-gray-400 mt-1" title="Tiempo promedio total gastado por día de limpieza. Solo cuenta días donde hubo operaciones.">
+                ℹ️ Por día de limpieza
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-orange-600">
-                {estadisticas30Dias.tiempoPromedioOperacion}
+                {estadisticas30Dias.tiempoPromedioHabitacion}
               </div>
-              <div className="text-sm text-gray-600">Avg per Room (30d)</div>
+              <div className="text-sm text-gray-600">Tiempo promedio por habitación</div>
+              <div className="text-xs text-gray-400 mt-1" title="Tiempo promedio por operación de habitación. Excluye escaleras por ser más rápidas.">
+                ℹ️ Por operación (sin escaleras)
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {estadisticas30Dias.habitacionesUnicas}
+                {estadisticas30Dias.porcentajeExito}%
               </div>
-              <div className="text-sm text-gray-600">Unique Rooms (30d)</div>
+              <div className="text-sm text-gray-600">% de éxito</div>
+              <div className="text-xs text-gray-400 mt-1" title="Porcentaje de operaciones y pasos sin fallas. Considera tanto operaciones completas falladas como pasos individuales fallados.">
+                ℹ️ Sin fallas (operaciones + pasos)
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -952,11 +1289,11 @@ export default function VanishPage() {
                               className="text-blue-600 hover:text-blue-800 underline font-medium"
                               onClick={() => navigateToDate(grupo.fecha, grupo.operaciones)}
                             >
-                              {formatDate(grupo.fecha)}
+                              {formatDateDisplay(grupo.fecha)}
                             </button>
                           </td>
                           <td className="p-3 font-mono text-sm">
-                            {formatDuration(totalTime)}
+                            {formatDurationShort(totalTime)}
                           </td>
                           <td className="p-3 text-sm">
                             {avgMinutes} min

@@ -37,7 +37,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const { operacionId, fallado, fotoFalla } = await request.json();
+    const { operacionId, fallado, fotoFalla, stepId, stepFallado, stepFotoFalla } = await request.json();
 
     if (!operacionId) {
       return NextResponse.json(
@@ -46,13 +46,41 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Update the checklist progress with the new fallado status and/or photo
+    // Get current operation
+    const currentProgress = await DatabaseService.getChecklistProgress(operacionId.toString());
+    if (!currentProgress) {
+      return NextResponse.json(
+        { error: 'Operation not found' },
+        { status: 404 }
+      );
+    }
+
     const updateData: any = {};
+
+    // Handle operation-level updates
     if (typeof fallado === 'boolean') {
       updateData.fallado = fallado;
     }
     if (fotoFalla !== undefined) {
       updateData.fotoFalla = fotoFalla;
+    }
+
+    // Handle step-level updates
+    if (stepId !== undefined) {
+      const updatedPasos = currentProgress.pasos.map(paso => {
+        if (paso.id === stepId) {
+          const updatedPaso = { ...paso };
+          if (typeof stepFallado === 'boolean') {
+            updatedPaso.fallado = stepFallado;
+          }
+          if (stepFotoFalla !== undefined) {
+            updatedPaso.fotoFalla = stepFotoFalla;
+          }
+          return updatedPaso;
+        }
+        return paso;
+      });
+      updateData.pasos = updatedPasos;
     }
 
     const updatedProgress = await DatabaseService.updateChecklistProgress(
@@ -62,8 +90,8 @@ export async function PUT(request: Request) {
 
     if (!updatedProgress) {
       return NextResponse.json(
-        { error: 'Operation not found' },
-        { status: 404 }
+        { error: 'Failed to update operation' },
+        { status: 500 }
       );
     }
 

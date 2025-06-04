@@ -61,6 +61,8 @@ export interface ChecklistProgress {
     ignorado?: boolean;
     tipoFoto?: string;
     completado?: boolean;
+    fallado?: boolean;
+    fotoFalla?: string;
   }[];
   sesionId?: string;
   completa: boolean;
