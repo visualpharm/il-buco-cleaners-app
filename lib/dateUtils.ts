@@ -2,13 +2,12 @@
 // This file contains all date/time formatting functions used across the application
 
 /**
- * Format time without seconds (e.g., "14:22")
+ * Format time without seconds (e.g., "9:30", "12:50")
  */
 export const formatTimeShort = (date: Date): string => {
-  return date.toLocaleTimeString('es-ES', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
+  const hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
 };
 
 /**
@@ -52,7 +51,7 @@ export const formatDurationHours = (ms: number): string => {
 };
 
 /**
- * Format date for display (e.g., "Today 14:22", "Yesterday 09:15", "Jan 15, 10:30")
+ * Format date for display (e.g., "Hoy 9:30", "Ayer 12:50", "Ene 15, 10:30")
  */
 export const formatDateDisplay = (date: Date): string => {
   const today = new Date();
@@ -67,12 +66,12 @@ export const formatDateDisplay = (date: Date): string => {
   const timeStr = formatTimeShort(date);
   
   if (isSameDay(date, today)) {
-    return `Today ${timeStr}`;
+    return `Hoy ${timeStr}`;
   } else if (isSameDay(date, yesterday)) {
-    return `Yesterday ${timeStr}`;
+    return `Ayer ${timeStr}`;
   } else {
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     return `${monthNames[date.getMonth()]} ${date.getDate()}, ${timeStr}`;
   }
 };

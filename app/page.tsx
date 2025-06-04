@@ -899,7 +899,7 @@ export default function LimpiezaPage() {
           <div className="flex-1 text-center">
             <h1 className="font-bold text-lg">{habitacionSeleccionada!.nombre}</h1>
             <p className="text-sm text-gray-600">
-              Step {pasoActual + 1} of {CHECKLIST_STEPS.length} • {habitacionSeleccionada!.piso}
+              Paso {pasoActual + 1} de {CHECKLIST_STEPS.length} • {habitacionSeleccionada!.piso}
             </p>
           </div>
         </div>
