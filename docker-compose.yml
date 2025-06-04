@@ -8,7 +8,8 @@ services:
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongo:27017/il-buco-cleaners
-      - UPLOADS_DIR=/app/uploadsd      - WATCHPACK_POLLING=true
+      - UPLOADS_DIR=/app/uploads
+      - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
     volumes:
       - ./uploads:/app/uploads
