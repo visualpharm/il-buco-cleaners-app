@@ -13,16 +13,37 @@ export async function POST(request: Request) {
       );
     }
 
-    // Convert date strings to Date objects
+    // Convert Spanish field names to English and date strings to Date objects
     const progressData = {
-      ...data,
-      horaInicio: new Date(data.horaInicio),
-      horaFin: data.horaFin ? new Date(data.horaFin) : undefined,
-      pasos: data.pasos.map((paso: any) => ({
+      id: data.id,
+      room: data.habitacion,
+      type: data.tipo,
+      startTime: new Date(data.horaInicio),
+      endTime: data.horaFin ? new Date(data.horaFin) : undefined,
+      steps: data.pasos.map((paso: any) => ({
         ...paso,
-        horaInicio: new Date(paso.horaInicio),
-        horaCompletado: paso.horaCompletado ? new Date(paso.horaCompletado) : undefined,
+        startTime: new Date(paso.horaInicio),
+        completedTime: paso.horaCompletado ? new Date(paso.horaCompletado) : undefined,
+        elapsedTime: paso.tiempoTranscurrido,
+        photo: paso.foto,
+        validationAI: paso.validacionIA ? {
+          isValid: paso.validacionIA.esValida,
+          analysis: {
+            expected: paso.validacionIA.analisis.esperaba,
+            found: paso.validacionIA.analisis.encontro
+          }
+        } : undefined,
+        corrected: paso.corregido,
+        ignored: paso.ignorado,
+        photoType: paso.tipoFoto,
+        failed: paso.fallado,
+        failurePhoto: paso.fotoFalla
       })),
+      sessionId: data.sesionId,
+      complete: data.completa || false,
+      reason: data.razon,
+      failed: data.fallado,
+      failurePhoto: data.fotoFalla
     };
 
     const result = await DatabaseService.saveChecklistProgress(progressData);

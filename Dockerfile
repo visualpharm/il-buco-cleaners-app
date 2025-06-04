@@ -23,6 +23,10 @@ COPY . .
 # Create uploads directory
 RUN mkdir -p uploads
 
+# Run migration if MongoDB is available (during deployment)
+# This is safe to fail in build environments where DB is not available
+RUN npm run migrate:apply 2>/dev/null || echo "Migration will run on app start"
+
 # Expose port
 EXPOSE 3000
 

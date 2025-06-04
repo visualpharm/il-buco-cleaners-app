@@ -1,77 +1,51 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import { WithId, Document } from 'mongodb';
-
-// Define TypeScript interfaces for our data
-interface StepData {
-  id: number;
-  horaInicio: Date;
-  horaCompletado?: Date;
-  tiempoTranscurrido?: number;
-  foto?: string;
-  validacionIA?: {
-    esValida: boolean;
-    analisis: {
-      esperaba: string;
-      encontro: string;
-    };
-  };
-  corregido?: boolean;
-  ignorado?: boolean;
-  tipoFoto?: string;
-  fallado?: boolean;
-  fotoFalla?: string;
-}
-
-interface LimpiezaDocument extends WithId<Document> {
-  id: number;
-  habitacion: string;
-  tipo?: string;
-  horaInicio: Date;
-  horaFin: Date;
-  pasos: StepData[];
-  sesionId?: string;
-  completa?: boolean;
-  razon?: string;
-  fallado?: boolean;
-  fotoFalla?: string;
-}
 
 // This route is marked as dynamic to prevent static generation
 export const dynamic = 'force-dynamic';
 
+// Redirect to the new cleanings endpoint
 export async function GET() {
   try {
-    // Connect to the database
-    const { db } = await connectToDatabase();
+    // Fetch from the new cleanings endpoint
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/cleanings`);
+    const data = await response.json();
     
-    if (!db) {
-      throw new Error('No se pudo conectar a la base de datos');
-    }
-    
-    // Fetch all cleaning records from the database
-    const limpiezas = await db.collection<LimpiezaDocument>('checklistProgress')
-      .find({})
-      .sort({ horaInicio: -1 }) // Sort by most recent first
-      .toArray();
-    
-    // Convert MongoDB _id to string for JSON serialization
-    const formattedLimpiezas = limpiezas.map(limpieza => ({
-      ...limpieza,
-      _id: limpieza._id.toString(),
-      // Ensure dates are properly serialized
-      horaInicio: limpieza.horaInicio ? new Date(limpieza.horaInicio).toISOString() : null,
-      horaFin: limpieza.horaFin ? new Date(limpieza.horaFin).toISOString() : null,
-      pasos: limpieza.pasos?.map((paso: StepData) => ({
-        ...paso,
-        horaInicio: paso.horaInicio ? new Date(paso.horaInicio).toISOString() : null,
-        horaCompletado: paso.horaCompletado ? new Date(paso.horaCompletado).toISOString() : null
-      })) || []
+    // Transform English field names back to Spanish for backward compatibility
+    const transformedData = data.map((cleaning: any) => ({
+      ...cleaning,
+      habitacion: cleaning.room,
+      tipo: cleaning.type,
+      horaInicio: cleaning.startTime,
+      horaFin: cleaning.endTime,
+      pasos: cleaning.steps?.map((step: any) => ({
+        ...step,
+        horaInicio: step.startTime,
+        horaCompletado: step.completedTime,
+        tiempoTranscurrido: step.elapsedTime,
+        foto: step.photo,
+        validacionIA: step.validationAI ? {
+          esValida: step.validationAI.isValid,
+          analisis: {
+            esperaba: step.validationAI.analysis.expected,
+            encontro: step.validationAI.analysis.found
+          }
+        } : undefined,
+        corregido: step.corrected,
+        ignorado: step.ignored,
+        tipoFoto: step.photoType,
+        fallado: step.failed,
+        fotoFalla: step.failurePhoto
+      })) || [],
+      sesionId: cleaning.sessionId,
+      completa: cleaning.complete,
+      razon: cleaning.reason,
+      fallado: cleaning.failed,
+      fotoFalla: cleaning.failurePhoto
     }));
 
-    return NextResponse.json(formattedLimpiezas);
+    return NextResponse.json(transformedData);
   } catch (error) {
-    console.error('Error fetching limpiezas:', error);
+    console.error('Error fetching cleanings:', error);
     return NextResponse.json(
       { 
         error: 'Error al cargar las limpiezas',

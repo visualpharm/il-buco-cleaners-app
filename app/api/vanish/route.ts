@@ -5,23 +5,37 @@ export async function GET() {
   try {
     const checklistProgress = await DatabaseService.getAllChecklistProgress();
     
-    // Transform the data to match the frontend's expected format
+    // Transform the data to match the frontend's expected format (Spanish UI)
     const formattedSessions = checklistProgress.map((progress) => ({
       id: progress.id,
-      habitacion: progress.habitacion,
-      tipo: progress.tipo,
-      horaInicio: progress.horaInicio.toISOString(),
-      horaFin: progress.horaFin ? progress.horaFin.toISOString() : new Date().toISOString(),
-      pasos: progress.pasos.map((paso) => ({
-        ...paso,
-        horaInicio: paso.horaInicio.toISOString(),
-        horaCompletado: paso.horaCompletado ? paso.horaCompletado.toISOString() : undefined,
+      habitacion: progress.room, // Map from English DB field to Spanish UI
+      tipo: progress.type,
+      horaInicio: progress.startTime.toISOString(),
+      horaFin: progress.endTime ? progress.endTime.toISOString() : new Date().toISOString(),
+      pasos: progress.steps.map((step) => ({
+        ...step,
+        horaInicio: step.startTime.toISOString(),
+        horaCompletado: step.completedTime ? step.completedTime.toISOString() : undefined,
+        tiempoTranscurrido: step.elapsedTime,
+        foto: step.photo,
+        validacionIA: step.validationAI ? {
+          esValida: step.validationAI.isValid,
+          analisis: {
+            esperaba: step.validationAI.analysis.expected,
+            encontro: step.validationAI.analysis.found
+          }
+        } : undefined,
+        corregido: step.corrected,
+        ignorado: step.ignored,
+        tipoFoto: step.photoType,
+        fallado: step.failed,
+        fotoFalla: step.failurePhoto
       })),
-      sesionId: progress.sesionId,
-      completa: progress.completa,
-      razon: progress.razon,
-      fallado: progress.fallado,
-      fotoFalla: progress.fotoFalla
+      sesionId: progress.sessionId,
+      completa: progress.complete,
+      razon: progress.reason,
+      fallado: progress.failed,
+      fotoFalla: progress.failurePhoto
     }));
 
     return NextResponse.json(formattedSessions);
@@ -67,20 +81,20 @@ export async function PUT(request: Request) {
 
     // Handle step-level updates
     if (stepId !== undefined) {
-      const updatedPasos = currentProgress.pasos.map(paso => {
-        if (paso.id === stepId) {
-          const updatedPaso = { ...paso };
+      const updatedSteps = currentProgress.steps.map(step => {
+        if (step.id === stepId) {
+          const updatedStep = { ...step };
           if (typeof stepFallado === 'boolean') {
-            updatedPaso.fallado = stepFallado;
+            updatedStep.failed = stepFallado;
           }
           if (stepFotoFalla !== undefined) {
-            updatedPaso.fotoFalla = stepFotoFalla;
+            updatedStep.failurePhoto = stepFotoFalla;
           }
-          return updatedPaso;
+          return updatedStep;
         }
-        return paso;
+        return step;
       });
-      updateData.pasos = updatedPasos;
+      updateData.steps = updatedSteps;
     }
 
     const updatedProgress = await DatabaseService.updateChecklistProgress(

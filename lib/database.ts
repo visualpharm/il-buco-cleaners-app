@@ -40,35 +40,35 @@ export interface ClickEvent {
 export interface ChecklistProgress {
   _id?: ObjectId;
   id: string;
-  habitacion: string;
-  tipo: string;
-  horaInicio: Date;
-  horaFin?: Date;
-  pasos: {
+  room: string;
+  type: string;
+  startTime: Date;
+  endTime?: Date;
+  steps: {
     id: number;
-    horaInicio: Date;
-    horaCompletado?: Date;
-    tiempoTranscurrido?: number;
-    foto?: string;
-    validacionIA?: {
-      esValida: boolean;
-      analisis: {
-        esperaba: string;
-        encontro: string;
+    startTime: Date;
+    completedTime?: Date;
+    elapsedTime?: number;
+    photo?: string;
+    validationAI?: {
+      isValid: boolean;
+      analysis: {
+        expected: string;
+        found: string;
       };
     };
-    corregido?: boolean;
-    ignorado?: boolean;
-    tipoFoto?: string;
-    completado?: boolean;
-    fallado?: boolean;
-    fotoFalla?: string;
+    corrected?: boolean;
+    ignored?: boolean;
+    photoType?: string;
+    completed?: boolean;
+    failed?: boolean;
+    failurePhoto?: string;
   }[];
-  sesionId?: string;
-  completa: boolean;
-  razon?: string;
-  fallado?: boolean;
-  fotoFalla?: string;
+  sessionId?: string;
+  complete: boolean;
+  reason?: string;
+  failed?: boolean;
+  failurePhoto?: string;
   createdAt: Date;
   updatedAt: Date;
 }
