@@ -584,7 +584,7 @@ export default function LimpiezaPage() {
     const unaHoraEnMs = 60 * 60 * 1000 // 1 hora en milisegundos
     if (pasoActual > 0 && tiempoTranscurrido > unaHoraEnMs) {
       // Guardar limpieza actual como incompleta
-      guardarLimpiezaIncompleta(datosLimpieza)
+      await guardarLimpiezaIncompleta(datosLimpieza)
 
       // Reiniciar nueva limpieza
       const nuevoDato: StepData = {
@@ -619,7 +619,7 @@ export default function LimpiezaPage() {
       setPasoActual(pasoActual + 1)
     } else {
       // Limpieza completada
-      guardarLimpiezaCompleta(datosActualizados)
+      await guardarLimpiezaCompleta(datosActualizados)
     }
   }
 
@@ -657,14 +657,14 @@ export default function LimpiezaPage() {
     }
   }
 
-  const guardarLimpiezaIncompleta = (datos: StepData[]) => {
+  const guardarLimpiezaIncompleta = async (datos: StepData[]) => {
     if (!habitacionSeleccionada) {
       console.error('No se ha seleccionado una habitación');
       return;
     }
 
     const limpiezaIncompleta = {
-      id: Date.now(),
+      id: Date.now().toString(),
       habitacion: habitacionSeleccionada.nombre,
       tipo: habitacionSeleccionada.tipo,
       horaInicio: horaInicioLimpieza || new Date(),
@@ -676,6 +676,14 @@ export default function LimpiezaPage() {
     };
 
     try {
+      // Save to MongoDB
+      await fetch('/api/checklist-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(limpiezaIncompleta)
+      });
+
+      // Also save to localStorage as backup
       const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]");
       limpiezasGuardadas.push(limpiezaIncompleta);
       localStorage.setItem("limpiezas", JSON.stringify(limpiezasGuardadas));
@@ -684,14 +692,14 @@ export default function LimpiezaPage() {
     }
   }
 
-  const guardarLimpiezaCompleta = (datos: StepData[]) => {
+  const guardarLimpiezaCompleta = async (datos: StepData[]) => {
     if (!habitacionSeleccionada) {
       console.error('No se ha seleccionado una habitación');
       return;
     }
 
     const limpiezaCompleta = {
-      id: Date.now(),
+      id: Date.now().toString(),
       habitacion: habitacionSeleccionada.nombre,
       tipo: habitacionSeleccionada.tipo,
       horaInicio: horaInicioLimpieza || new Date(),
@@ -702,6 +710,14 @@ export default function LimpiezaPage() {
     };
 
     try {
+      // Save to MongoDB
+      await fetch('/api/checklist-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(limpiezaCompleta)
+      });
+
+      // Also save to localStorage as backup
       const limpiezasGuardadas = JSON.parse(localStorage.getItem("limpiezas") || "[]");
       limpiezasGuardadas.push(limpiezaCompleta);
       localStorage.setItem("limpiezas", JSON.stringify(limpiezasGuardadas));

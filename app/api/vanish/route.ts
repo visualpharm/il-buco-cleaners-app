@@ -3,16 +3,25 @@ import { DatabaseService } from '@/lib/database';
 
 export async function GET() {
   try {
-    const sessions = await DatabaseService.getAllSessions();
+    const checklistProgress = await DatabaseService.getAllChecklistProgress();
     
     // Transform the data to match the frontend's expected format
-    const formattedSessions = sessions.map((session) => ({
-      id: session.id,
-      habitacion: session.roomType,
-      horaInicio: session.startTime,
-      horaFin: session.endTime || new Date(),
-      pasos: [], // Empty for now, could be populated from photos
-      tipo: getRoomType(session.roomType)
+    const formattedSessions = checklistProgress.map((progress) => ({
+      id: progress.id,
+      habitacion: progress.habitacion,
+      tipo: progress.tipo,
+      horaInicio: progress.horaInicio.toISOString(),
+      horaFin: progress.horaFin ? progress.horaFin.toISOString() : new Date().toISOString(),
+      pasos: progress.pasos.map((paso) => ({
+        ...paso,
+        horaInicio: paso.horaInicio.toISOString(),
+        horaCompletado: paso.horaCompletado ? paso.horaCompletado.toISOString() : undefined,
+      })),
+      sesionId: progress.sesionId,
+      completa: progress.completa,
+      razon: progress.razon,
+      fallado: progress.fallado,
+      fotoFalla: progress.fotoFalla
     }));
 
     return NextResponse.json(formattedSessions);
@@ -25,12 +34,50 @@ export async function GET() {
   }
 }
 
-// Helper function to determine room type
-function getRoomType(roomName: string): string {
-  const lowerName = roomName.toLowerCase();
-  if (lowerName.includes('parrilla')) return 'parrilla';
-  if (lowerName.includes('escalera')) return 'escalera';
-  return 'habitacion';
+
+export async function PUT(request: Request) {
+  try {
+    const { operacionId, fallado, fotoFalla } = await request.json();
+
+    if (!operacionId) {
+      return NextResponse.json(
+        { error: 'Operation ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Update the checklist progress with the new fallado status and/or photo
+    const updateData: any = {};
+    if (typeof fallado === 'boolean') {
+      updateData.fallado = fallado;
+    }
+    if (fotoFalla !== undefined) {
+      updateData.fotoFalla = fotoFalla;
+    }
+
+    const updatedProgress = await DatabaseService.updateChecklistProgress(
+      operacionId.toString(),
+      updateData
+    );
+
+    if (!updatedProgress) {
+      return NextResponse.json(
+        { error: 'Operation not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      data: updatedProgress
+    });
+  } catch (error) {
+    console.error('Error updating operation:', error);
+    return NextResponse.json(
+      { error: 'Failed to update operation' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE() {

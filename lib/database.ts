@@ -37,6 +37,40 @@ export interface ClickEvent {
   sessionId?: string;
 }
 
+export interface ChecklistProgress {
+  _id?: ObjectId;
+  id: string;
+  habitacion: string;
+  tipo: string;
+  horaInicio: Date;
+  horaFin?: Date;
+  pasos: {
+    id: number;
+    horaInicio: Date;
+    horaCompletado?: Date;
+    tiempoTranscurrido?: number;
+    foto?: string;
+    validacionIA?: {
+      esValida: boolean;
+      analisis: {
+        esperaba: string;
+        encontro: string;
+      };
+    };
+    corregido?: boolean;
+    ignorado?: boolean;
+    tipoFoto?: string;
+    completado?: boolean;
+  }[];
+  sesionId?: string;
+  completa: boolean;
+  razon?: string;
+  fallado?: boolean;
+  fotoFalla?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Database operations
 export class DatabaseService {
   // Cleaning Sessions
@@ -113,6 +147,47 @@ export class DatabaseService {
     const query = startDate && endDate ? 
       { timestamp: { $gte: startDate, $lte: endDate } } : {};
     return await collection.find(query).sort({ timestamp: -1 }).toArray();
+  }
+
+  // Checklist Progress
+  static async saveChecklistProgress(progressData: Omit<ChecklistProgress, '_id' | 'createdAt' | 'updatedAt'>): Promise<ChecklistProgress> {
+    const collection = await getCollection<ChecklistProgress>('checklistProgress');
+    const now = new Date();
+    const progress = {
+      ...progressData,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const result = await collection.insertOne(progress);
+    return { ...progress, _id: result.insertedId };
+  }
+
+  static async getChecklistProgress(id: string): Promise<ChecklistProgress | null> {
+    const collection = await getCollection<ChecklistProgress>('checklistProgress');
+    return await collection.findOne({ id });
+  }
+
+  static async updateChecklistProgress(id: string, updates: Partial<ChecklistProgress>): Promise<ChecklistProgress | null> {
+    const collection = await getCollection<ChecklistProgress>('checklistProgress');
+    const result = await collection.findOneAndUpdate(
+      { id },
+      { $set: { ...updates, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+    return result;
+  }
+
+  static async getAllChecklistProgress(): Promise<ChecklistProgress[]> {
+    const collection = await getCollection<ChecklistProgress>('checklistProgress');
+    return await collection.find({}).sort({ createdAt: -1 }).toArray();
+  }
+
+  static async getChecklistProgressByDateRange(startDate: Date, endDate: Date): Promise<ChecklistProgress[]> {
+    const collection = await getCollection<ChecklistProgress>('checklistProgress');
+    return await collection.find({
+      createdAt: { $gte: startDate, $lte: endDate }
+    }).sort({ createdAt: -1 }).toArray();
   }
 
   // Analytics helpers

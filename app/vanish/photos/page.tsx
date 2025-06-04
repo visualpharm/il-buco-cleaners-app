@@ -109,24 +109,32 @@ export default function PhotosPage() {
           <p className="text-gray-500">No hay fotos disponibles</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {photos.map((photo) => (
-            <div key={photo.key} className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-              <div className="relative aspect-square">
-                <Image
-                  src={photo.url}
-                  alt={`Foto subida el ${photo.lastModified.toLocaleString()}`}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                />
-              </div>
-              <div className="p-3 bg-white">
-                <p className="text-sm text-gray-600">{formatDate(photo.lastModified)}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <table className="min-w-full bg-white border border-gray-200">
+          <thead>
+            <tr>
+              <th className="px-2 py-1 border-b text-left">Foto</th>
+              <th className="px-2 py-1 border-b text-left">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {photos.map((photo) => (
+              <tr key={photo.key} className="hover:bg-gray-50">
+                <td className="px-2 py-1 border-b">
+                  <img
+                    src={photo.url}
+                    alt={`Foto subida el ${photo.lastModified.toLocaleString()}`}
+                    width={20}
+                    height={20}
+                    style={{ width: 20, height: 20, objectFit: 'cover', display: 'block' }}
+                  />
+                </td>
+                <td className="px-2 py-1 border-b align-middle">
+                  <span className="text-sm text-gray-600">{formatDate(photo.lastModified)}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
