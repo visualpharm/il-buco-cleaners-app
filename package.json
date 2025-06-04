@@ -12,8 +12,7 @@
     "docker:logs": "docker-compose logs -f",
     "migrate:dry-run": "DRY_RUN=true node scripts/migrate-to-english.js",
     "migrate:apply": "node scripts/migrate-to-english.js",
-    "prebuild": "node scripts/deploy-migration.js",
-    "postinstall": "node scripts/deploy-migration.js"
+    "prestart": "node scripts/startup-migration.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.1.3",

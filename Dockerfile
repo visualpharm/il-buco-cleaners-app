@@ -23,12 +23,11 @@ COPY . .
 # Create uploads directory
 RUN mkdir -p uploads
 
-# Run migration if MongoDB is available (during deployment)
-# This is safe to fail in build environments where DB is not available
-RUN npm run migrate:apply 2>/dev/null || echo "Migration will run on app start"
+# Build the application
+RUN pnpm run build
 
 # Expose port
 EXPOSE 3000
 
-# Development command (overridden in docker-compose)
-CMD ["pnpm", "run", "dev"]
+# Production command (use dev for development in docker-compose)
+CMD ["pnpm", "run", "start"]

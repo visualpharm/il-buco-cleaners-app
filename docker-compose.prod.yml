@@ -1,0 +1,28 @@
+version: '3.8'
+
+# Production Docker Compose configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+  app:
+    command: pnpm run start  # Use production start command
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/il-buco-cleaners
+      - UPLOADS_DIR=/app/uploads
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  mongo:
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  nginx:
+    restart: unless-stopped

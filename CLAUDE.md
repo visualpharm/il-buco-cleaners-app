@@ -38,9 +38,12 @@ npm run migrate:apply
 
 ### Build and Deployment
 ```bash
-npm run build        # Builds app (runs migration automatically)
-npm run start        # Production server
+npm run build        # Builds app (production ready)
+npm run start        # Production server (runs migration at startup)
 npm run lint         # ESLint check
+
+# Production deployment
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
 ## Architecture Overview
