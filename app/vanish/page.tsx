@@ -1,21 +1,37 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { formatTimeShort, formatDurationShort, formatDurationVerbose, formatDateDisplay, formatDateForUrl, isWeirdDuration, formatDateLocal, formatDateTitle } from "@/lib/dateUtils"
+import { formatTimeShort, formatDurationShort, formatDateDisplay, formatDateForUrl } from "@/lib/dateUtils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CheckCircle, XCircle, Camera, AlertTriangle, Pause } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Camera, CheckCircle, XCircle, AlertTriangle, Pause } from "lucide-react"
 import Image from "next/image"
 
+// Loading component for Suspense fallback
+function Loading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
+    </div>
+  )
+}
+
+// Define types
 interface StepData {
   id: number
   horaInicio: Date
   horaCompletado?: Date
   tiempoTranscurrido?: number
   foto?: string
-  validacionIA?: { esValida: boolean; analisis: { esperaba: string; encontro: string } }
+  validacionIA?: { 
+    esValida: boolean; 
+    analisis: { 
+      esperaba: string; 
+      encontro: string 
+    } 
+  }
   corregido?: boolean
   ignorado?: boolean
   tipoFoto?: string
@@ -37,12 +53,12 @@ interface LimpiezaCompleta {
   fotoFalla?: string
 }
 
+// Constants
 const TIPOS_FOTOS = [
   {
     id: "cama",
     titulo: "Cama completa",
-    descripcion:
-      "Cama completa con sábana, fundas de almohada, funda del acolchado alineada, pie de cama con arrugas y manta polar en mesita de luz",
+    descripcion: "Cama completa con sábana, fundas de almohada, funda del acolchado alineada, pie de cama con arrugas y manta polar en mesita de luz",
   },
   {
     id: "cubiertos",
@@ -61,104 +77,16 @@ const TIPOS_FOTOS = [
   },
 ]
 
-const CHECKLIST_HABITACIONES = [
-  { id: 1, categoria: "Inspección inicial", texto: "Tocar la puerta" },
-  { id: 2, categoria: "Inspección inicial", texto: "Entrar y verificar si hubo check-out" },
-  {
-    id: 3,
-    categoria: "Revisión para lavar",
-    texto: "Revisar si hace falta lavar: cortinas, fundas decorativas, funda de futón, mantas o plaids",
-  },
-  {
-    id: 4,
-    categoria: "Revisión para lavar",
-    texto: "Si hubo huéspedes: sábanas, fundas de almohadas, funda del edredón, toallas",
-  },
-  {
-    id: 5,
-    categoria: "Revisión para lavar",
-    texto: "Separar blancos y colores y poner a lavar (se puede juntar con otras habitaciones)",
-  },
-  {
-    id: 7,
-    categoria: "Tender la cama",
-    texto:
-      "Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz",
-  },
-  { id: 8, categoria: "Baño", texto: "1 toalla grande + 1 de mano por huésped" },
-  { id: 9, categoria: "Baño", texto: "Papel higiénico: 1 usado + 1 nuevo" },
-  {
-    id: 10,
-    categoria: "Baño",
-    texto:
-      "Botellas: jabón líquido en bacha, jabón líquido en ducha, shampoo (revisar que no estén con menos de la mitad)",
-  },
-  { id: 11, categoria: "Baño", texto: "Limpiar: ducha, bacha, inodoro, espejo, mampara" },
-  {
-    id: 12,
-    categoria: "Cocina y utensilios",
-    texto: "Verificar cubiertos: 2 tenedores, 2 cuchillos, 2 cucharas, 2 cucharitas, 1 cuchillo de cocina",
-  },
-  {
-    id: 13,
-    categoria: "Cocina y utensilios",
-    texto: "Verificar vajilla: 2 platos grandes, 2 platos hondos, 2 platos postre, 2 vasos, 2 tazas",
-  },
-  { id: 14, categoria: "Cocina y utensilios", texto: "Verificar utensilios de cocina: 1 olla o sartén, 1 espátula" },
-  {
-    id: 15,
-    categoria: "Cocina y utensilios",
-    texto: "Condimentos: 3 bolsitas de sal, 3 de azúcar, 3 de edulcorante en frascos (uno por tipo)",
-  },
-  { id: 16, categoria: "Cocina y utensilios", texto: "Cafetera: revisar que esté vacía adentro" },
-  { id: 17, categoria: "Limpieza general", texto: "Limpiar vidrios si están marcados" },
-  { id: 18, categoria: "Limpieza general", texto: "Limpiar mesas, mesitas, estantes" },
-  { id: 19, categoria: "Limpieza general", texto: "Revisar y limpiar horno, microondas, heladera por dentro" },
-  { id: 20, categoria: "Limpieza general", texto: "Aspirar y trapear piso" },
-  { id: 21, categoria: "Basura y cierre", texto: "Tirar la basura de todos los tachos" },
-  { id: 22, categoria: "Basura y cierre", texto: "Poner 1 bolsa nueva y dejar 2 bolsas de repuesto en el fondo" },
-  { id: 23, categoria: "Basura y cierre", texto: "Apagar luces y aire" },
-  { id: 24, categoria: "Basura y cierre", texto: "Cerrar ventanas y puertas" },
-].map((item, index) => ({ ...item, id: index + 1 }))
-
-const CHECKLIST_PARRILLA = [
-  { id: 1, categoria: "Inspección", texto: "Revisar estado general de la parrilla" },
-  { id: 2, categoria: "Limpieza", texto: "Limpiar parrilla si está sucia" },
-  { id: 3, categoria: "Limpieza", texto: "Limpiar mesa y superficies" },
-  { id: 4, categoria: "Limpieza", texto: "Barrer y limpiar el piso" },
-  { id: 5, categoria: "Basura", texto: "Tirar basura y poner bolsa nueva" },
-  { id: 6, categoria: "Cierre", texto: "Verificar que todo esté en orden" },
-]
-
-const CHECKLIST_ESCALERA = [
-  { id: 1, categoria: "Limpieza", texto: "Aspirar escalones" },
-  { id: 2, categoria: "Limpieza", texto: "Limpiar barandas" },
-  { id: 3, categoria: "Limpieza", texto: "Limpiar hall común" },
-  { id: 4, categoria: "Limpieza", texto: "Trapear pisos" },
-  { id: 5, categoria: "Basura", texto: "Tirar basura si hay" },
-]
-
-const obtenerChecklist = (tipo: string) => {
-  switch (tipo) {
-    case "parrilla":
-      return CHECKLIST_PARRILLA
-    case "escalera":
-      return CHECKLIST_ESCALERA
-    default:
-      return CHECKLIST_HABITACIONES
-  }
-}
-
-export default function VanishPage() {
+// Main component that uses useSearchParams
+function VanishPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   
   const [limpiezas, setLimpiezas] = useState<LimpiezaCompleta[]>([])
   const [limpiezaSeleccionada, setLimpiezaSeleccionada] = useState<LimpiezaCompleta | null>(null)
   const [fechaSeleccionada, setFechaSeleccionada] = useState<{fecha: Date, operaciones: LimpiezaCompleta[]} | null>(null)
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Helper function to navigate with URL params
   const navigateToDate = (fecha: Date, operaciones: LimpiezaCompleta[]) => {
@@ -200,9 +128,8 @@ export default function VanishPage() {
         
         // If room and operation are specified, select the specific operation
         if (roomParam && operationParam) {
-          const operacion = grupo.operaciones.find(op => 
-            op.habitacion === decodeURIComponent(roomParam) && 
-            op.id.toString() === operationParam
+          const operacion = grupo.operaciones.find(
+            op => op.habitacion === roomParam && op.id === parseInt(operationParam)
           )
           if (operacion) {
             setLimpiezaSeleccionada(operacion)
@@ -212,1138 +139,308 @@ export default function VanishPage() {
     }
   }, [searchParams, limpiezas])
 
+  // Fetch cleaning data
   useEffect(() => {
     const fetchLimpiezas = async () => {
       try {
-        setIsLoading(true);
-        const response = await fetch('/api/vanish');
+        setIsLoading(true)
+        const response = await fetch('/api/limpiezas')
         if (!response.ok) {
-          throw new Error('Failed to fetch cleaning sessions');
+          throw new Error('Error al cargar las limpiezas')
         }
-        const data = await response.json();
+        const data = await response.json()
         
-        // Parse ISO date strings back to Date objects
-        const parsedData = data.map((limpieza: any) => ({
+        // Handle both array response and object with data property
+        const limpiezasData = Array.isArray(data) ? data : (data.data || []);
+        
+        // Ensure we have valid data
+        if (!Array.isArray(limpiezasData)) {
+          throw new Error('Formato de datos inválido')
+        }
+        
+        // Convert string dates back to Date objects
+        const formattedData = limpiezasData.map(limpieza => ({
           ...limpieza,
           horaInicio: new Date(limpieza.horaInicio),
-          horaFin: new Date(limpieza.horaFin),
-          pasos: limpieza.pasos.map((paso: any) => ({
+          horaFin: limpieza.horaFin ? new Date(limpieza.horaFin) : new Date(),
+          pasos: limpieza.pasos?.map((paso: any) => ({
             ...paso,
-            horaInicio: new Date(paso.horaInicio),
-            horaCompletado: paso.horaCompletado ? new Date(paso.horaCompletado) : undefined,
-          }))
+            horaInicio: paso.horaInicio ? new Date(paso.horaInicio) : null,
+            horaCompletado: paso.horaCompletado ? new Date(paso.horaCompletado) : null
+          })) || []
         }));
         
-        setLimpiezas(parsedData);
+        setLimpiezas(formattedData);
       } catch (err) {
-        console.error('Error fetching cleaning sessions:', err);
-        setError('Failed to load cleaning sessions. Please try again later.');
+        console.error('Error fetching limpiezas:', err)
+        setError('Error al cargar los datos de limpieza: ' + (err instanceof Error ? err.message : 'Error desconocido'))
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchLimpiezas();
+    fetchLimpiezas()
   }, [])
 
-
-  const calcularResumen = (limpieza: LimpiezaCompleta) => {
-    const tiempoTotal = limpieza.horaFin.getTime() - limpieza.horaInicio.getTime()
-    
-    // Calculate success percentage (100% - % of failures)
-    const totalPasos = limpieza.pasos.length
-    const pasosFallados = limpieza.pasos.filter(p => p.fallado).length
-    const porcentajeFallas = totalPasos > 0 ? Math.round((pasosFallados / totalPasos) * 100) : 0
-    const porcentajeExitos = 100 - porcentajeFallas
-
-    // Calculate average step duration from all operations for comparison
-    const calcularPromedioGlobal = () => {
-      const todasLasDuraciones: number[] = []
-      limpiezas.forEach(operacion => {
-        operacion.pasos.forEach(paso => {
-          if (paso.tiempoTranscurrido && paso.tiempoTranscurrido > 0) {
-            todasLasDuraciones.push(paso.tiempoTranscurrido)
-          }
-        })
-      })
-      return todasLasDuraciones.length > 0 
-        ? todasLasDuraciones.reduce((sum, dur) => sum + dur, 0) / todasLasDuraciones.length 
-        : 0
-    }
-
-    // Find the longest operation compared to global average
-    const promedioGlobal = calcularPromedioGlobal()
-    let operacionMasLarga: { duracion: string; paso: string } | null = null
-    
-    if (promedioGlobal > 0) {
-      let mayorDuracion = 0
-      let pasoMasLargo = ""
-      
-      limpieza.pasos.forEach((paso, index) => {
-        if (paso.tiempoTranscurrido && paso.tiempoTranscurrido > promedioGlobal && paso.tiempoTranscurrido > mayorDuracion) {
-          mayorDuracion = paso.tiempoTranscurrido
-          const checklistCompleto = obtenerChecklist(limpieza.tipo || "habitacion")
-          const stepInfo = checklistCompleto[index]
-          pasoMasLargo = stepInfo ? `Paso ${index + 1}: ${stepInfo.categoria}` : `Paso ${index + 1}`
-        }
-      })
-      
-      if (mayorDuracion > 0) {
-        operacionMasLarga = {
-          duracion: formatDurationShort(mayorDuracion),
-          paso: pasoMasLargo
-        }
-      }
-    }
-
-    return {
-      tiempoTotal: formatDurationVerbose(tiempoTotal),
-      porcentajeExitos,
-      operacionMasLarga
-    }
-  }
-
-  // Group cleaning operations into sessions (max 1 hour gap between operations)
-  const agruparEnSesiones = (limpiezas: LimpiezaCompleta[]) => {
-    if (limpiezas.length === 0) return []
-    
-    const sortedLimpiezas = [...limpiezas].sort((a, b) => a.horaInicio.getTime() - b.horaInicio.getTime())
-    const sesiones: LimpiezaCompleta[][] = []
-    let sesionActual: LimpiezaCompleta[] = [sortedLimpiezas[0]]
-    
-    for (let i = 1; i < sortedLimpiezas.length; i++) {
-      const anterior = sortedLimpiezas[i - 1]
-      const actual = sortedLimpiezas[i]
-      const diferencia = actual.horaInicio.getTime() - anterior.horaFin.getTime()
-      
-      // If gap is more than 1 hour (3600000 ms), start new session
-      if (diferencia > 3600000) {
-        sesiones.push(sesionActual)
-        sesionActual = [actual]
-      } else {
-        sesionActual.push(actual)
-      }
-    }
-    
-    sesiones.push(sesionActual)
-    return sesiones
-  }
-
-  const calcularEstadisticasDia = (operacionesDia: LimpiezaCompleta[]) => {
-    if (operacionesDia.length === 0) {
-      return {
-        tiempoTotal: "0m 0s",
-        porcentajeExitos: 100,
-        habitacionMasLarga: null
-      }
-    }
-
-    // Calculate total time for the day
-    const tiempoTotalDia = operacionesDia.reduce((total, operacion) => 
-      total + (operacion.horaFin.getTime() - operacion.horaInicio.getTime()), 0
-    )
-
-    // Calculate success percentage (operations and steps without failures)
-    const totalOperaciones = operacionesDia.length
-    const operacionesFalladas = operacionesDia.filter(op => op.fallado).length
-    const totalPasos = operacionesDia.reduce((total, op) => total + op.pasos.length, 0)
-    const pasosFallados = operacionesDia.reduce((total, op) => 
-      total + op.pasos.filter(paso => paso.fallado).length, 0
-    )
-    
-    // Calculate overall success rate considering both operation and step failures
-    const fallasTotales = operacionesFalladas + pasosFallados
-    const elementosTotales = totalOperaciones + totalPasos
-    const porcentajeExitos = elementosTotales > 0 
-      ? Math.round(((elementosTotales - fallasTotales) / elementosTotales) * 100)
-      : 100
-
-    // Calculate global average room duration for comparison
-    const calcularPromedioGlobalHabitaciones = () => {
-      const duracionesPorTipo: { [tipo: string]: number[] } = {}
-      
-      limpiezas.forEach(operacion => {
-        const tipo = operacion.tipo || 'habitacion'
-        const duracion = operacion.horaFin.getTime() - operacion.horaInicio.getTime()
-        
-        if (!duracionesPorTipo[tipo]) {
-          duracionesPorTipo[tipo] = []
-        }
-        duracionesPorTipo[tipo].push(duracion)
-      })
-
-      const promedios: { [tipo: string]: number } = {}
-      Object.keys(duracionesPorTipo).forEach(tipo => {
-        const duraciones = duracionesPorTipo[tipo]
-        promedios[tipo] = duraciones.reduce((sum, dur) => sum + dur, 0) / duraciones.length
-      })
-
-      return promedios
-    }
-
-    // Find the room that took unusually long compared to average
-    const promediosGlobales = calcularPromedioGlobalHabitaciones()
-    let habitacionMasLarga: { duracion: string; nombre: string } | null = null
-    
-    let mayorExceso = 0
-    let habitacionMasLenta = ""
-    let duracionMasLarga = 0
-
-    operacionesDia.forEach(operacion => {
-      const tipo = operacion.tipo || 'habitacion'
-      const duracionOperacion = operacion.horaFin.getTime() - operacion.horaInicio.getTime()
-      const promedioTipo = promediosGlobales[tipo]
-      
-      if (promedioTipo && duracionOperacion > promedioTipo) {
-        const exceso = duracionOperacion - promedioTipo
-        if (exceso > mayorExceso) {
-          mayorExceso = exceso
-          habitacionMasLenta = operacion.habitacion
-          duracionMasLarga = duracionOperacion
-        }
-      }
-    })
-
-    if (mayorExceso > 0) {
-      habitacionMasLarga = {
-        duracion: formatDurationShort(duracionMasLarga),
-        nombre: habitacionMasLenta
-      }
-    }
-
-    return {
-      tiempoTotal: formatDurationVerbose(tiempoTotalDia),
-      porcentajeExitos,
-      habitacionMasLarga
-    }
-  }
-
-  const calcularEstadisticas30Dias = () => {
-    const hace30Dias = new Date()
-    hace30Dias.setDate(hace30Dias.getDate() - 30)
-    
-    const limpiezasRecientes = limpiezas.filter(l => l.horaInicio >= hace30Dias)
-    
-    if (limpiezasRecientes.length === 0) {
-      return {
-        limpiezaCadaDias: "0",
-        tiempoPromedioTotal: "0:00",
-        tiempoPromedioHabitacion: "0 min",
-        porcentajeExito: 100
-      }
-    }
-    
-    // 1. Limpieza cada X días - Calculate frequency based on actual time period
-    const gruposPorFecha = agruparPorFecha()
-    const fechasConLimpieza = gruposPorFecha.filter(grupo => grupo.operaciones.length > 0)
-    const diasConLimpieza = fechasConLimpieza.length
-    
-    let limpiezaCadaDias = "0"
-    if (diasConLimpieza > 0 && limpiezas.length > 0) {
-      // Find the first cleaning date
-      const primeraLimpieza = new Date(Math.min(...limpiezas.map(l => l.horaInicio.getTime())))
-      const ahora = new Date()
-      
-      // Calculate days passed since first cleaning
-      const diasTranscurridos = Math.max(1, Math.ceil((ahora.getTime() - primeraLimpieza.getTime()) / (24 * 60 * 60 * 1000)))
-      
-      // Use actual period or 30 days, whichever is smaller
-      const periodoAnalisis = Math.min(diasTranscurridos, 30)
-      
-      // Calculate frequency
-      const frecuencia = Math.round(periodoAnalisis / diasConLimpieza)
-      limpiezaCadaDias = frecuencia.toString()
-    }
-    
-    // 2. Tiempo promedio total - Average total session time per day with cleaning
-    const tiemposTotalesPorDia = fechasConLimpieza.map(grupo => {
-      const tiempoTotalDia = grupo.operaciones.reduce((total, op) => 
-        total + (op.horaFin.getTime() - op.horaInicio.getTime()), 0
-      )
-      return tiempoTotalDia
-    })
-    
-    const tiempoPromedioTotalMs = tiemposTotalesPorDia.length > 0 
-      ? tiemposTotalesPorDia.reduce((sum, tiempo) => sum + tiempo, 0) / tiemposTotalesPorDia.length
-      : 0
-    const tiempoPromedioTotal = formatDurationShort(tiempoPromedioTotalMs)
-    
-    // 3. Tiempo promedio por habitación (excluding escalera)
-    const operacionesHabitacion = limpiezasRecientes.filter(l => {
-      const tipo = l.tipo || 'habitacion'
-      return tipo !== 'escalera'
-    })
-    
-    const operacionesParaPromedio = operacionesHabitacion.length > 0 ? operacionesHabitacion : limpiezasRecientes
-    
-    let tiempoPromedioHabitacion = "0 min"
-    if (operacionesParaPromedio.length > 0) {
-      const tiempoTotalOperaciones = operacionesParaPromedio.reduce((total, l) => 
-        total + (l.horaFin.getTime() - l.horaInicio.getTime()), 0
-      )
-      const tiempoPromedio = tiempoTotalOperaciones / operacionesParaPromedio.length
-      const minutosPromedio = Math.round(tiempoPromedio / 60000)
-      tiempoPromedioHabitacion = `${minutosPromedio} min`
-    }
-    
-    // 4. % de éxito - Calculate success percentage considering both operations and steps
-    const totalOperaciones = limpiezasRecientes.length
-    const operacionesFalladas = limpiezasRecientes.filter(op => op.fallado).length
-    const totalPasos = limpiezasRecientes.reduce((total, op) => total + op.pasos.length, 0)
-    const pasosFallados = limpiezasRecientes.reduce((total, op) => 
-      total + op.pasos.filter(paso => paso.fallado).length, 0
-    )
-    
-    // Calculate overall success rate
-    const fallasTotales = operacionesFalladas + pasosFallados
-    const elementosTotales = totalOperaciones + totalPasos
-    const porcentajeExito = elementosTotales > 0 
-      ? Math.round(((elementosTotales - fallasTotales) / elementosTotales) * 100)
-      : 100
-    
-    return {
-      limpiezaCadaDias,
-      tiempoPromedioTotal,
-      tiempoPromedioHabitacion,
-      porcentajeExito
-    }
-  }
-
-  // Group cleanings by date for the new table
+  // Group cleanings by date for the table
   const agruparPorFecha = () => {
-    const grupos: { [fecha: string]: LimpiezaCompleta[] } = {}
+    const grupos: {fecha: Date, operaciones: LimpiezaCompleta[]}[] = []
     
     limpiezas.forEach(limpieza => {
-      const fecha = limpieza.horaInicio.toDateString()
-      if (!grupos[fecha]) {
-        grupos[fecha] = []
+      const fecha = new Date(limpieza.horaInicio)
+      fecha.setHours(0, 0, 0, 0)
+      
+      const grupoExistente = grupos.find(g => g.fecha.getTime() === fecha.getTime())
+      
+      if (grupoExistente) {
+        grupoExistente.operaciones.push(limpieza)
+      } else {
+        grupos.push({
+          fecha,
+          operaciones: [limpieza]
+        })
       }
-      grupos[fecha].push(limpieza)
     })
     
-    return Object.entries(grupos)
-      .map(([fecha, operaciones]) => ({
-        fecha: new Date(fecha),
-        operaciones: operaciones.sort((a, b) => a.horaInicio.getTime() - b.horaInicio.getTime())
-      }))
-      .sort((a, b) => b.fecha.getTime() - a.fecha.getTime())
+    // Sort groups by date (newest first)
+    return grupos.sort((a, b) => b.fecha.getTime() - a.fecha.getTime())
   }
 
-  // Get all unique room names for table columns
-  const obtenerHabitacionesUnicas = () => {
-    return Array.from(new Set(limpiezas.map(l => l.habitacion))).sort()
+  // Format duration in a verbose way (e.g., "2 horas y 30 minutos")
+  const formatDurationVerbose = (ms: number) => {
+    if (!ms) return "0 minutos"
+    const seconds = Math.floor(ms / 1000)
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    
+    const parts = []
+    if (hours > 0) parts.push(`${hours} hora${hours > 1 ? 's' : ''}`)
+    if (minutes > 0) parts.push(`${minutes} minuto${minutes > 1 ? 's' : ''}`)
+    
+    return parts.join(' y ') || '0 minutos'
   }
 
-  const handleToggleFallado = async (operacionId: number, fallado: boolean) => {
+  // Statistics calculations
+  const calcularEstadisticasGenerales = () => {
+    if (!limpiezas.length) return null;
+
+    const limpiezasCompletas = limpiezas.filter(l => l.completa);
+    const totalOperaciones = limpiezas.length;
+    const operacionesExitosas = limpiezasCompletas.length;
+    const tasaExito = totalOperaciones > 0 ? (operacionesExitosas / totalOperaciones) * 100 : 0;
+
+    const fechaInicio = new Date(Math.min(...limpiezas.map(l => new Date(l.horaInicio).getTime())));
+    const fechaActual = new Date();
+    const diasTranscurridos = Math.max(1, Math.ceil((fechaActual.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24)));
+    const frecuenciaSemanal = (totalOperaciones / diasTranscurridos) * 7;
+
+    const duraciones = limpiezasCompletas
+      .map(l => l.pasos.reduce((total, paso) => total + (paso.tiempoTranscurrido || 0), 0))
+      .filter(d => d > 0);
+    const tiempoPromedio = duraciones.length > 0 ? duraciones.reduce((a, b) => a + b, 0) / duraciones.length : 0;
+
+    return {
+      frecuenciaSemanal,
+      tiempoPromedio,
+      tasaExito
+    };
+  };
+
+  const calcularEstadisticasFecha = (operaciones: LimpiezaCompleta[]) => {
+    const operacionesCompletas = operaciones.filter(op => op.completa);
+    const totalTiempo = operacionesCompletas.reduce((total, op) => 
+      total + op.pasos.reduce((sum, paso) => sum + (paso.tiempoTranscurrido || 0), 0), 0
+    );
+    
+    const tasaExito = operaciones.length > 0 ? (operacionesCompletas.length / operaciones.length) * 100 : 0;
+    
+    const habitacionLenta = operacionesCompletas.reduce((lenta, op) => {
+      const tiempoOp = op.pasos.reduce((sum, paso) => sum + (paso.tiempoTranscurrido || 0), 0);
+      const tiempoLenta = lenta ? lenta.pasos.reduce((sum, paso) => sum + (paso.tiempoTranscurrido || 0), 0) : 0;
+      return tiempoOp > tiempoLenta ? op : lenta;
+    }, null as LimpiezaCompleta | null);
+
+    return {
+      totalTiempo,
+      tasaExito,
+      habitacionLenta
+    };
+  };
+
+  const calcularEstadisticasOperacion = (operacion: LimpiezaCompleta) => {
+    const tiempoTotal = operacion.pasos.reduce((total, paso) => total + (paso.tiempoTranscurrido || 0), 0);
+    const pasosCompletados = operacion.pasos.filter(paso => paso.horaCompletado).length;
+    const totalPasos = operacion.pasos.length;
+    const tasaExito = totalPasos > 0 ? (pasosCompletados / totalPasos) * 100 : 0;
+    
+    const operacionLarga = operacion.pasos.reduce((larga, paso) => {
+      const tiempoPaso = paso.tiempoTranscurrido || 0;
+      const tiempoLarga = larga?.tiempoTranscurrido || 0;
+      return tiempoPaso > tiempoLarga ? paso : larga;
+    }, null as StepData | null);
+
+    return {
+      tiempoTotal,
+      tasaExito,
+      operacionLarga
+    };
+  };
+
+  const mostrarMensajeFalla = async (operacionId: number, fallado: boolean, fotoFalla?: string) => {
     try {
       const response = await fetch('/api/vanish', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operacionId,
-          fallado,
-          fotoFalla: !fallado ? null : undefined // Clear photo when marking as complete
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operacionId, fallado, fotoFalla })
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update operation status');
+      
+      if (response.ok) {
+        const updatedData = limpiezas.map(l => 
+          l.id === operacionId ? { ...l, fallado, fotoFalla } : l
+        );
+        setLimpiezas(updatedData);
       }
-
-      // Update local state
-      setLimpiezas(prev => prev.map(limpieza => 
-        limpieza.id === operacionId 
-          ? { ...limpieza, fallado, ...(fallado ? {} : { fotoFalla: undefined }) }
-          : limpieza
-      ));
-
-      if (fechaSeleccionada) {
-        setFechaSeleccionada(prev => prev ? {
-          ...prev,
-          operaciones: prev.operaciones.map(op => 
-            op.id === operacionId 
-              ? { ...op, fallado, ...(fallado ? {} : { fotoFalla: undefined }) }
-              : op
-          )
-        } : null);
-      }
-    } catch (err) {
-      console.error('Error updating operation status:', err);
-      alert('Failed to update operation status. Please try again.');
+    } catch (error) {
+      console.error('Error updating operation:', error);
     }
   };
 
-  const handleFallaPhoto = async (operacionId: number, file: File | undefined) => {
-    if (!file) return;
-
+  const mostrarMensajeFallaPaso = async (operacionId: number, stepId: number, stepFallado: boolean, stepFotoFalla?: string) => {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('operacionId', operacionId.toString());
-      formData.append('type', 'falla');
-
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload failure photo');
-      }
-
-      const { url } = await response.json();
-
-      // Update the operation with the photo URL
-      await fetch('/api/vanish', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operacionId,
-          fotoFalla: url
-        }),
-      });
-
-      // Update local state
-      setLimpiezas(prev => prev.map(limpieza => 
-        limpieza.id === operacionId 
-          ? { ...limpieza, fotoFalla: url }
-          : limpieza
-      ));
-
-      if (fechaSeleccionada) {
-        setFechaSeleccionada(prev => prev ? {
-          ...prev,
-          operaciones: prev.operaciones.map(op => 
-            op.id === operacionId 
-              ? { ...op, fotoFalla: url }
-              : op
-          )
-        } : null);
-      }
-    } catch (err) {
-      console.error('Error uploading failure photo:', err);
-      alert('Failed to upload failure photo. Please try again.');
-    }
-  };
-
-  const handleStepToggleFallado = async (stepId: number, fallado: boolean) => {
-    if (!limpiezaSeleccionada) return;
-
-    try {
-      // Update the operation with the step failure status
       const response = await fetch('/api/vanish', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operacionId: limpiezaSeleccionada.id,
-          stepId,
-          stepFallado: fallado,
-          stepFotoFalla: !fallado ? null : undefined // Clear photo when marking as complete
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operacionId, stepId, stepFallado, stepFotoFalla })
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update step status');
-      }
-
-      // Update local state
-      const updatedLimpieza = {
-        ...limpiezaSeleccionada,
-        pasos: limpiezaSeleccionada.pasos.map(paso =>
-          paso.id === stepId
-            ? { ...paso, fallado, ...(fallado ? {} : { fotoFalla: undefined }) }
-            : paso
-        )
-      };
-
-      setLimpiezaSeleccionada(updatedLimpieza);
       
-      setLimpiezas(prev => prev.map(limpieza => 
-        limpieza.id === limpiezaSeleccionada.id ? updatedLimpieza : limpieza
-      ));
-
-      if (fechaSeleccionada) {
-        setFechaSeleccionada(prev => prev ? {
-          ...prev,
-          operaciones: prev.operaciones.map(op => 
-            op.id === limpiezaSeleccionada.id ? updatedLimpieza : op
-          )
-        } : null);
-      }
-    } catch (err) {
-      console.error('Error updating step status:', err);
-      alert('Failed to update step status. Please try again.');
-    }
-  };
-
-  const handleStepFallaPhoto = async (stepId: number, file: File | undefined) => {
-    if (!file || !limpiezaSeleccionada) return;
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('operacionId', limpiezaSeleccionada.id.toString());
-      formData.append('stepId', stepId.toString());
-      formData.append('type', 'step-falla');
-
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload step failure photo');
-      }
-
-      const { url } = await response.json();
-
-      // Update the operation with the step photo URL
-      await fetch('/api/vanish', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operacionId: limpiezaSeleccionada.id,
-          stepId,
-          stepFotoFalla: url
-        }),
-      });
-
-      // Update local state
-      const updatedLimpieza = {
-        ...limpiezaSeleccionada,
-        pasos: limpiezaSeleccionada.pasos.map(paso =>
-          paso.id === stepId
-            ? { ...paso, fotoFalla: url }
-            : paso
-        )
-      };
-
-      setLimpiezaSeleccionada(updatedLimpieza);
-      
-      setLimpiezas(prev => prev.map(limpieza => 
-        limpieza.id === limpiezaSeleccionada.id ? updatedLimpieza : limpieza
-      ));
-
-      if (fechaSeleccionada) {
-        setFechaSeleccionada(prev => prev ? {
-          ...prev,
-          operaciones: prev.operaciones.map(op => 
-            op.id === limpiezaSeleccionada.id ? updatedLimpieza : op
-          )
-        } : null);
-      }
-    } catch (err) {
-      console.error('Error uploading step failure photo:', err);
-      alert('Failed to upload step failure photo. Please try again.');
-    }
-  };
-
-  const limpiarDatos = async () => {
-    if (confirm("¿Estás seguro de que quieres borrar todos los datos de limpieza?")) {
-      try {
-        const response = await fetch('/api/vanish', {
-          method: 'DELETE',
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to delete cleaning sessions');
+      if (response.ok) {
+        const updatedData = limpiezas.map(l => 
+          l.id === operacionId ? {
+            ...l,
+            pasos: l.pasos.map(p => 
+              p.id === stepId ? { ...p, fallado: stepFallado, fotoFalla: stepFotoFalla } : p
+            )
+          } : l
+        );
+        setLimpiezas(updatedData);
+        if (limpiezaSeleccionada?.id === operacionId) {
+          setLimpiezaSeleccionada(updatedData.find(l => l.id === operacionId) || null);
         }
-        
-        setLimpiezas([]);
-        setLimpiezaSeleccionada(null);
-      } catch (err) {
-        console.error('Error deleting cleaning sessions:', err);
-        alert('Failed to delete cleaning sessions. Please try again.');
       }
+    } catch (error) {
+      console.error('Error updating step:', error);
     }
+  };
+
+  const handlePhotoUpload = (file: File, isOperation: boolean, operacionId: number, stepId?: number) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (isOperation) {
+        mostrarMensajeFalla(operacionId, true, result);
+      } else if (stepId !== undefined) {
+        mostrarMensajeFallaPaso(operacionId, stepId, true, result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Render loading state
+  if (isLoading) {
+    return <Loading />
   }
 
-  if (limpiezaSeleccionada) {
-    const resumen = calcularResumen(limpiezaSeleccionada)
-    const checklistCompleto = obtenerChecklist(limpiezaSeleccionada.tipo || "habitacion")
-
+  // Render error state
+  if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <Button variant="outline" onClick={() => {
-              if (fechaSeleccionada) {
-                // Navigate back to the date view, removing room and operation params
-                const dateString = formatDateForUrl(fechaSeleccionada.fecha)
-                router.push(`/vanish?date=${dateString}`)
-                setLimpiezaSeleccionada(null)
-              } else {
-                // Navigate to home if no date was selected
-                navigateToHome()
-              }
-            }}>
-              ← {fechaSeleccionada ? 'Back to Date View' : 'Volver a reportes'}
-            </Button>
-            <div className="text-right">
-              <h1 className="text-2xl font-bold">{limpiezaSeleccionada.habitacion}</h1>
-              <p className="text-gray-600">
-                {formatDateLocal(limpiezaSeleccionada.horaInicio)} - {formatTimeShort(limpiezaSeleccionada.horaInicio)}
-              </p>
-              {!limpiezaSeleccionada.completa && (
-                <Badge variant="destructive" className="mt-1">
-                  Incompleta - {limpiezaSeleccionada.razon}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {/* Resumen */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Estadísticas de Limpieza</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{resumen.tiempoTotal}</div>
-                  <div className="text-sm text-gray-600">Tiempo Total</div>
-                  <div className="text-xs text-gray-400 mt-1" title="Duración total de esta operación de limpieza desde inicio hasta fin.">
-                    ℹ️ Inicio a fin de operación
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{resumen.porcentajeExitos}%</div>
-                  <div className="text-sm text-gray-600">% de Éxitos</div>
-                  <div className="text-xs text-gray-400 mt-1" title="Porcentaje de pasos completados sin marcar como fallados en esta operación.">
-                    ℹ️ Pasos sin fallas
-                  </div>
-                </div>
-                <div className="text-center">
-                  {resumen.operacionMasLarga ? (
-                    <div>
-                      <div className="text-2xl font-bold text-orange-600">{resumen.operacionMasLarga.duracion}</div>
-                      <div className="text-sm text-gray-600">Operación más larga</div>
-                      <div className="text-xs text-gray-500">{resumen.operacionMasLarga.paso}</div>
-                      <div className="text-xs text-gray-400 mt-1" title="Paso que tardó más tiempo comparado con el promedio global de todos los pasos.">
-                        ℹ️ Vs promedio global de pasos
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="text-2xl font-bold text-gray-400">-</div>
-                      <div className="text-sm text-gray-600">Operación más larga</div>
-                      <div className="text-xs text-gray-400 mt-1" title="Paso que tardó más tiempo comparado con el promedio global de todos los pasos.">
-                        ℹ️ Vs promedio global de pasos
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Pasos detallados */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Detalles de los Pasos de Limpieza</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <table style={{width: '100%', borderCollapse: 'collapse', border: '1px solid #ccc'}}>
-                <thead>
-                  <tr style={{backgroundColor: '#f5f5f5'}}>
-                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Paso</td>
-                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Categoría</td>
-                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Tarea</td>
-                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Estado</td>
-                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Hora Inicio</td>
-                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Duración</td>
-                    <td style={{padding: '12px', border: '1px solid #ccc', fontWeight: 'bold'}}>Falla</td>
-                  </tr>
-                </thead>
-                <tbody>
-                  {checklistCompleto.map((step, index) => {
-                    const pasoData = limpiezaSeleccionada.pasos.find((p) => p.id === step.id)
-                    
-                    return (
-                      <tr key={step.id}>
-                        <td style={{padding: '12px', border: '1px solid #ccc', textAlign: 'center'}}>
-                          {index + 1}
-                        </td>
-                        <td style={{padding: '12px', border: '1px solid #ccc'}}>
-                          {step.categoria}
-                        </td>
-                        <td style={{padding: '12px', border: '1px solid #ccc'}}>
-                          {step.texto.includes(":") && step.texto.split(":")[1].includes(",") ? (
-                            <div>
-                              <div style={{fontWeight: 'bold', marginBottom: '4px'}}>{step.texto.split(":")[0]}:</div>
-                              <ul style={{margin: 0, paddingLeft: '20px'}}>
-                                {step.texto
-                                  .split(":")[1]
-                                  .split(",")
-                                  .map((item, idx) => (
-                                    <li key={idx}>{item.trim()}</li>
-                                  ))}
-                              </ul>
-                            </div>
-                          ) : (
-                            step.texto
-                          )}
-                        </td>
-                        <td style={{padding: '12px', border: '1px solid #ccc', textAlign: 'center'}}>
-                          {pasoData?.horaCompletado ? (
-                            <span style={{color: 'green', fontSize: '18px'}}>✓</span>
-                          ) : pasoData ? (
-                            <span style={{color: 'orange', fontSize: '18px'}}>⏸</span>
-                          ) : (
-                            <span style={{color: 'red', fontSize: '18px'}}>⚠</span>
-                          )}
-                        </td>
-                        <td style={{padding: '12px', border: '1px solid #ccc', fontSize: '14px', fontFamily: 'monospace'}}>
-                          {pasoData ? formatTimeShort(pasoData.horaInicio) : '-'}
-                        </td>
-                        <td style={{padding: '12px', border: '1px solid #ccc', fontSize: '14px', fontFamily: 'monospace'}}>
-                          {pasoData?.tiempoTranscurrido ? formatDurationShort(pasoData.tiempoTranscurrido) : '-'}
-                        </td>
-                        <td style={{padding: '12px', border: '1px solid #ccc', textAlign: 'center'}}>
-                          {pasoData ? (
-                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}>
-                              {pasoData.fallado ? (
-                                <div style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
-                                  <span style={{color: 'red', fontSize: '14px', fontWeight: 'bold'}}>Fallado</span>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    onChange={(e) => handleStepFallaPhoto(step.id, e.target.files?.[0])}
-                                    style={{display: 'none'}}
-                                    id={`step-falla-photo-${step.id}`}
-                                  />
-                                  <label
-                                    htmlFor={`step-falla-photo-${step.id}`}
-                                    style={{
-                                      cursor: 'pointer',
-                                      padding: '4px',
-                                      border: '1px solid #ccc',
-                                      borderRadius: '4px',
-                                      backgroundColor: '#f8f9fa',
-                                      display: 'flex',
-                                      alignItems: 'center'
-                                    }}
-                                    title="Take photo of step failure"
-                                  >
-                                    📷
-                                  </label>
-                                  {pasoData.fotoFalla && (
-                                    <img
-                                      src={pasoData.fotoFalla}
-                                      alt="Step failure photo"
-                                      style={{
-                                        width: '24px',
-                                        height: '24px',
-                                        objectFit: 'cover',
-                                        border: '1px solid #ccc',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer'
-                                      }}
-                                      onClick={() => window.open(pasoData.fotoFalla, '_blank')}
-                                    />
-                                  )}
-                                  <button
-                                    onClick={() => handleStepToggleFallado(step.id, false)}
-                                    style={{
-                                      fontSize: '12px',
-                                      color: 'green',
-                                      textDecoration: 'underline',
-                                      border: 'none',
-                                      background: 'none',
-                                      cursor: 'pointer'
-                                    }}
-                                    title="Mark as complete"
-                                  >
-                                    ✓ OK
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => handleStepToggleFallado(step.id, true)}
-                                  style={{
-                                    fontSize: '12px',
-                                    color: 'red',
-                                    textDecoration: 'underline',
-                                    border: 'none',
-                                    background: 'none',
-                                    cursor: 'pointer'
-                                  }}
-                                  title="Mark as failed"
-                                >
-                                  Marcar falla
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{color: 'gray', fontSize: '12px'}}>-</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
-  if (fechaSeleccionada) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <Button variant="outline" onClick={navigateToHome}>
-              ← Back to Summary
-            </Button>
-            <div className="text-right">
-              <h1 className="text-2xl font-bold">
-                Limpieza de {formatDateTitle(fechaSeleccionada.fecha)}
-              </h1>
-              <p className="text-gray-600">
-                {fechaSeleccionada.operaciones.length} operations completed
-              </p>
-            </div>
-          </div>
-
-          {/* Estadísticas del día */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Estadísticas del Día</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{calcularEstadisticasDia(fechaSeleccionada.operaciones).tiempoTotal}</div>
-                  <div className="text-sm text-gray-600">Tiempo Total</div>
-                  <div className="text-xs text-gray-400 mt-1" title="Suma de todas las duraciones de limpieza del día.">
-                    ℹ️ Todas las operaciones del día
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{calcularEstadisticasDia(fechaSeleccionada.operaciones).porcentajeExitos}%</div>
-                  <div className="text-sm text-gray-600">% de Éxitos</div>
-                  <div className="text-xs text-gray-400 mt-1" title="Porcentaje de operaciones y pasos completados sin fallas. Cuenta tanto operaciones falladas como pasos individuales fallados.">
-                    ℹ️ Sin fallas (ops + pasos)
-                  </div>
-                </div>
-                <div className="text-center">
-                  {calcularEstadisticasDia(fechaSeleccionada.operaciones).habitacionMasLarga ? (
-                    <div>
-                      <div className="text-2xl font-bold text-orange-600">{calcularEstadisticasDia(fechaSeleccionada.operaciones).habitacionMasLarga?.duracion}</div>
-                      <div className="text-sm text-gray-600">Habitación más lenta</div>
-                      <div className="text-xs text-gray-500">{calcularEstadisticasDia(fechaSeleccionada.operaciones).habitacionMasLarga?.nombre}</div>
-                      <div className="text-xs text-gray-400 mt-1" title="Habitación que tardó más tiempo comparado con el promedio histórico de su tipo.">
-                        ℹ️ Vs promedio histórico por tipo
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="text-2xl font-bold text-gray-400">-</div>
-                      <div className="text-sm text-gray-600">Habitación más lenta</div>
-                      <div className="text-xs text-gray-400 mt-1" title="Habitación que tardó más tiempo comparado con el promedio histórico de su tipo.">
-                        ℹ️ Vs promedio histórico por tipo
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Operations Table */}
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="text-left p-3 font-medium">Room</th>
-                      <th className="text-left p-3 font-medium">Type</th>
-                      <th className="text-left p-3 font-medium">Started</th>
-                      <th className="text-left p-3 font-medium">Finished</th>
-                      <th className="text-left p-3 font-medium">Duration</th>
-                      <th className="text-left p-3 font-medium">Photos</th>
-                      <th className="text-left p-3 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fechaSeleccionada.operaciones.map((limpieza) => (
-                      <tr key={limpieza.id} className="border-b hover:bg-gray-50">
-                        <td className="p-3 font-medium">
-                          <button
-                            className="text-blue-600 hover:text-blue-800 underline font-medium"
-                            onClick={() => navigateToRoom(fechaSeleccionada.fecha, limpieza)}
-                          >
-                            {limpieza.habitacion}
-                          </button>
-                        </td>
-                        <td className="p-3">
-                          <Badge variant="secondary" className="capitalize">{limpieza.tipo}</Badge>
-                        </td>
-                        <td className="p-3 font-mono text-sm">{formatTimeShort(limpieza.horaInicio)}</td>
-                        <td className="p-3 font-mono text-sm">{formatTimeShort(limpieza.horaFin)}</td>
-                        <td className="p-3 font-mono text-sm">{formatDurationShort(limpieza.horaFin.getTime() - limpieza.horaInicio.getTime())}</td>
-                        <td className="p-3">
-                          <div className="flex items-center space-x-1">
-                            <span className="text-sm">{limpieza.pasos.filter(p => p.foto).length}</span>
-                            {limpieza.pasos.filter(p => p.foto).length > 0 && (
-                              <div className="flex space-x-1 ml-2">
-                                {limpieza.pasos.filter(p => p.foto).slice(0, 3).map((paso, idx) => (
-                                  <img
-                                    key={idx}
-                                    src={paso.foto}
-                                    alt="Step photo"
-                                    width="24"
-                                    height="24"
-                                    className="object-cover rounded border cursor-pointer hover:scale-110 transition-transform"
-                                    style={{width: '24px', height: '24px'}}
-                                    onClick={() => window.open(paso.foto, '_blank')}
-                                  />
-                                ))}
-                                {limpieza.pasos.filter(p => p.foto).length > 3 && (
-                                  <span className="text-xs text-gray-500">+{limpieza.pasos.filter(p => p.foto).length - 3}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center space-x-2">
-                            {limpieza.completa === false ? (
-                              <Badge variant="destructive">Incomplete</Badge>
-                            ) : limpieza.fallado ? (
-                              <div className="flex items-center space-x-2">
-                                <Badge variant="destructive">Con Fallas</Badge>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  capture="environment"
-                                  onChange={(e) => handleFallaPhoto(limpieza.id, e.target.files?.[0])}
-                                  className="hidden"
-                                  id={`falla-photo-${limpieza.id}`}
-                                />
-                                <label
-                                  htmlFor={`falla-photo-${limpieza.id}`}
-                                  className="cursor-pointer p-1 rounded border hover:bg-gray-50"
-                                  title="Take photo of failure"
-                                >
-                                  <Camera className="w-4 h-4 text-gray-600" />
-                                </label>
-                                {limpieza.fotoFalla && (
-                                  <img
-                                    src={limpieza.fotoFalla}
-                                    alt="Failure photo"
-                                    width="20"
-                                    height="20"
-                                    className="object-cover rounded border cursor-pointer hover:scale-110 transition-transform"
-                                    style={{width: '20px', height: '20px'}}
-                                    onClick={() => window.open(limpieza.fotoFalla, '_blank')}
-                                  />
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-center space-x-2">
-                                <Badge className="bg-green-100 text-green-800">Completo</Badge>
-                                <button
-                                  onClick={() => handleToggleFallado(limpieza.id, true)}
-                                  className="text-xs text-red-600 hover:text-red-800 underline"
-                                  title="Mark as failed"
-                                >
-                                  Marcar falla
-                                </button>
-                              </div>
-                            )}
-                            {limpieza.fallado && (
-                              <button
-                                onClick={() => handleToggleFallado(limpieza.id, false)}
-                                className="text-xs text-green-600 hover:text-green-800 underline"
-                                title="Mark as complete"
-                              >
-                                Marcar completo
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
-  const estadisticas30Dias = calcularEstadisticas30Dias()
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6 flex justify-end">
-          <Button
-            onClick={() => window.open("/", "_blank")}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-500 text-center p-4">
+          <p className="text-xl font-bold mb-2">Error</p>
+          <p>{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            🧹 Limpiador
-          </Button>
+            Reintentar
+          </button>
         </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">{estadisticas30Dias.limpiezaCadaDias}</div>
-              <div className="text-sm text-gray-600">Limpieza cada X días</div>
-              <div className="text-xs text-gray-400 mt-1" title="Días transcurridos desde la primera limpieza dividido por número de días con limpieza. Máximo 30 días de análisis.">
-                ℹ️ Frecuencia desde inicio
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {estadisticas30Dias.tiempoPromedioTotal}
-              </div>
-              <div className="text-sm text-gray-600">Tiempo promedio total</div>
-              <div className="text-xs text-gray-400 mt-1" title="Tiempo promedio total gastado por día de limpieza. Solo cuenta días donde hubo operaciones.">
-                ℹ️ Por día de limpieza
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {estadisticas30Dias.tiempoPromedioHabitacion}
-              </div>
-              <div className="text-sm text-gray-600">Tiempo promedio por habitación</div>
-              <div className="text-xs text-gray-400 mt-1" title="Tiempo promedio por operación de habitación. Excluye escaleras por ser más rápidas.">
-                ℹ️ Por operación (sin escaleras)
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                {estadisticas30Dias.porcentajeExito}%
-              </div>
-              <div className="text-sm text-gray-600">% de éxito</div>
-              <div className="text-xs text-gray-400 mt-1" title="Porcentaje de operaciones y pasos sin fallas. Considera tanto operaciones completas falladas como pasos individuales fallados.">
-                ℹ️ Sin fallas (operaciones + pasos)
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Daily Cleaning Summary Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Daily Cleaning Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {limpiezas.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No cleaning operations recorded yet</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="text-left p-3 font-medium">Date</th>
-                      <th className="text-left p-3 font-medium">Total Time</th>
-                      <th className="text-left p-3 font-medium">Avg per Room</th>
-                      <th className="text-left p-3 font-medium">Fallas</th>
-                      {obtenerHabitacionesUnicas().map(habitacion => (
-                        <th key={habitacion} className="text-center p-2 font-medium text-xs" style={{minWidth: '60px'}}>
-                          {habitacion.length > 8 ? `${habitacion.substring(0, 8)}...` : habitacion}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {agruparPorFecha().map((grupo) => {
-                      const totalTime = grupo.operaciones.reduce((total, op) => 
-                        total + (op.horaFin.getTime() - op.horaInicio.getTime()), 0
-                      )
-                      const avgTime = totalTime / grupo.operaciones.length
-                      const avgMinutes = Math.round(avgTime / 60000)
-                      const fallasCount = grupo.operaciones.filter(op => op.fallado).length
-                      
-                      return (
-                        <tr key={grupo.fecha.toDateString()} className="border-b hover:bg-gray-50">
-                          <td className="p-3">
-                            <button
-                              className="text-blue-600 hover:text-blue-800 underline font-medium"
-                              onClick={() => navigateToDate(grupo.fecha, grupo.operaciones)}
-                            >
-                              {formatDateDisplay(grupo.fecha)}
-                            </button>
-                          </td>
-                          <td className="p-3 font-mono text-sm">
-                            {formatDurationShort(totalTime)}
-                          </td>
-                          <td className="p-3 text-sm">
-                            {avgMinutes} min
-                          </td>
-                          <td className="p-3 text-sm">
-                            {fallasCount > 0 ? (
-                              <span className="text-red-600 font-medium">{fallasCount}</span>
-                            ) : (
-                              <span className="text-green-600">0</span>
-                            )}
-                          </td>
-                          {obtenerHabitacionesUnicas().map(habitacion => {
-                            const operacion = grupo.operaciones.find(op => op.habitacion === habitacion)
-                            return (
-                              <td key={habitacion} className="p-2 text-center">
-                                {operacion ? (
-                                  <div className="flex items-center justify-center">
-                                    {operacion.pasos.find(p => p.foto) ? (
-                                      <img
-                                        src={operacion.pasos.find(p => p.foto)?.foto}
-                                        alt={`${habitacion} photo`}
-                                        width="20"
-                                        height="20"
-                                        className="object-cover rounded border cursor-pointer hover:scale-110 transition-transform"
-                                        style={{width: '20px', height: '20px'}}
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          window.open(operacion.pasos.find(p => p.foto)?.foto, '_blank')
-                                        }}
-                                      />
-                                    ) : (
-                                      <span className="text-green-600 text-lg">✓</span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-300">-</span>
-                                )}
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
+    )
+  }
+
+  // Render main content
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-6">Control de Limpieza</h1>
+      
+      {fechaSeleccionada ? (
+        <div>
+          <button 
+            onClick={navigateToHome}
+            className="mb-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+          >
+            ← Volver
+          </button>
+          
+          <h2 className="text-xl font-semibold mb-4">
+            {formatDateDisplay(fechaSeleccionada.fecha)}
+          </h2>
+          
+          <div className="space-y-4">
+            {fechaSeleccionada.operaciones.map((op) => (
+              <Card key={`${op.id}-${op.habitacion}`}>
+                <CardHeader>
+                  <CardTitle>{op.habitacion}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p>Inicio: {formatTimeShort(new Date(op.horaInicio))}</p>
+                    <p>Fin: {formatTimeShort(new Date(op.horaFin))}</p>
+                    <p>Duración: {formatDurationShort(op.pasos[0]?.tiempoTranscurrido || 0)}</p>
+                    <div className="flex space-x-2 mt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => navigateToRoom(fechaSeleccionada.fecha, op)}
+                      >
+                        Ver detalles
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Seleccione una fecha</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {agruparPorFecha().map((grupo) => (
+              <Card 
+                key={grupo.fecha.toISOString()}
+                className="cursor-pointer hover:bg-gray-50"
+                onClick={() => navigateToDate(grupo.fecha, grupo.operaciones)}
+              >
+                <CardHeader>
+                  <CardTitle>{formatDateDisplay(grupo.fecha)}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p>{grupo.operaciones.length} operaciones</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+// Wrapper component that provides Suspense boundary
+export default function VanishPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <VanishPageContent />
+    </Suspense>
   )
 }

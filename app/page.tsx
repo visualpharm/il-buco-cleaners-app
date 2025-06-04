@@ -5,22 +5,55 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Camera, CheckCircle, XCircle, ArrowLeft, Bed, Sofa, Flame, Check } from "lucide-react"
-import Image from "next/image"
+import { Camera, CheckCircle, XCircle, ArrowLeft, Check } from "lucide-react"
+
+// SVG Icon Components from Icons8
+const BedIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 48 48" className={className}>
+    <path fill="#9C27B0" d="M44,23c0,1.657-1.343,3-3,3H7c-1.657,0-3-1.343-3-3V9c0-1.657,1.343-3,3-3h34c1.657,0,3,1.343,3,3V23z"/>
+    <path fill="#F3E5F5" d="M40 21v-7.353c0-.256-.11-.497-.303-.664C39.465 12.78 37.563 11 32.531 11s-6.996 1.78-7.229 1.983C25.11 13.15 25 13.392 25 13.647V19L40 21zM8 21v-7.353c0-.256.11-.497.303-.664C8.535 12.78 10.438 11 15.469 11s6.996 1.78 7.229 1.983C22.89 13.15 23 13.392 23 13.647V19L8 21z"/>
+    <path fill="#FF9800" d="M46,42h-6v-2.237C40,38.52,39.56,38,38.315,38H9.685C8.44,38,8,38.52,8,39.763V42H2V31h44V42z"/>
+    <path fill="#E1BEE7" d="M46,33H2v-1c0-10.992,3.252-14.895,21.526-14.895C40.959,17.105,46,20.446,46,32V33z"/>
+    <path fill="#EF6C00" d="M2 32H46V34H2z"/>
+  </svg>
+)
+
+const SofaIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 48 48" className={className}>
+    <path fill="#FF9800" d="M6 36H10V39H6zM38 36H42V39H38z"/>
+    <path fill="#CE93D8" d="M4 17H44V37H4z"/>
+    <path fill="#9C27B0" d="M39,13c0-1.657-1.343-3-3-3H12c-1.656,0-3,1.343-3,3v12h30V13z"/>
+    <path fill="#E1BEE7" d="M39,28H9v-4c0-1.104,0.896-2,2-2h26c1.104,0,2,0.896,2,2V28z"/>
+  </svg>
+)
+
+const FlameIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 48 48" className={className}>
+    <path fill="#DD2C00" d="M39,28c0,8.395-6.606,15-15.001,15S9,36.395,9,28S22.479,12.6,20.959,5C24,5,39,15.841,39,28z"/>
+    <path fill="#FF5722" d="M33,32c0-7.599-9-15-9-15c0,6.08-9,8.921-9,15c0,5.036,3.963,9,9,9S33,37.036,33,32z"/>
+    <path fill="#FFC107" d="M18.999,35.406C19,32,24,30.051,24,27c0,0,4.999,3.832,4.999,8.406c0,2.525-2.237,4.574-5,4.574S18.998,37.932,18.999,35.406z"/>
+  </svg>
+)
+
+const StairsIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 48 48" className={className}>
+    <path fill="#FFC107" d="M41 42L6 42 6 7 13 7 13 14 20 14 20 21 27 21 27 28 34 28 34 35 41 35 41 42 41 42z"/>
+  </svg>
+)
 
 const HABITACIONES = [
   // Planta Baja - Blue
   {
     nombre: "Garden Room",
     piso: "Planta Baja",
-    icono: Bed,
+    icono: BedIcon,
     color: "bg-blue-100 hover:bg-blue-200",
     tipo: "habitacion",
   },
   {
     nombre: "Living",
     piso: "Planta Baja",
-    icono: Sofa,
+    icono: SofaIcon,
     color: "bg-blue-100 hover:bg-blue-200",
     tipo: "living",
   },
@@ -28,14 +61,14 @@ const HABITACIONES = [
   {
     nombre: "Suite Esquinera",
     piso: "1er Piso",
-    icono: Bed,
+    icono: BedIcon,
     color: "bg-orange-100 hover:bg-orange-200",
     tipo: "habitacion",
   },
   {
     nombre: "Suite con Terraza",
     piso: "1er Piso",
-    icono: Bed,
+    icono: BedIcon,
     color: "bg-orange-100 hover:bg-orange-200",
     tipo: "habitacion",
   },
@@ -43,7 +76,7 @@ const HABITACIONES = [
   {
     nombre: "Penthouse",
     piso: "2do Piso",
-    icono: Bed,
+    icono: BedIcon,
     color: "bg-gray-200",
     tipo: "habitacion",
     disabled: true,
@@ -51,7 +84,7 @@ const HABITACIONES = [
   {
     nombre: "Parrilla",
     piso: "2do Piso",
-    icono: Flame,
+    icono: FlameIcon,
     color: "bg-pink-100 hover:bg-pink-200",
     tipo: "parrilla",
   },
@@ -59,7 +92,7 @@ const HABITACIONES = [
   {
     nombre: "Escalera",
     piso: "Común",
-    icono: "stairs", // Special case for custom icon
+    icono: StairsIcon,
     color: "bg-gray-600 hover:bg-gray-700 text-white",
     tipo: "escalera",
   },
@@ -781,18 +814,8 @@ export default function LimpiezaPage() {
                         >
                           <div className="flex flex-col items-start w-full">
                             <div className="flex items-center justify-between w-full mb-1">
-                              {habitacion.icono === "stairs" ? (
-                                <Image
-                                  src="/icons/stairs-icon.png"
-                                  alt="Stairs"
-                                  width={24}
-                                  height={24}
-                                  className="w-6 h-6 filter invert"
-                                />
-                              ) : (
-                                <IconoHabitacion className="w-6 h-6" />
-                              )}
-                              {yaLimpiada && <CheckCircle className="w-5 h-5 text-green-600" />}
+                              <IconoHabitacion className="w-6 h-6" />
+``                              {yaLimpiada && <CheckCircle className="w-5 h-5 text-green-600" />}
                             </div>
                             <div className="text-sm font-medium leading-tight">{habitacion.nombre}</div>
                           </div>

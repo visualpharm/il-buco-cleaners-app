@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "icons8remote": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.icons8.com/mcp", "--header", "Authorization: Bearer 0029727a37d8e35b1ad5ed5adb366796392516eb"]
+    }
+  }
+}

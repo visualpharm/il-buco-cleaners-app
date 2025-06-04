@@ -8,14 +8,18 @@ services:
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongo:27017/il-buco-cleaners
-      - UPLOADS_DIR=/app/uploads
+      - UPLOADS_DIR=/app/uploadsd      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     volumes:
       - ./uploads:/app/uploads
       - .:/app
       - /app/node_modules
+      - /app/.next
     depends_on:
       - mongo
-    command: npm run dev
+    command: pnpm run dev
+    stdin_open: true
+    tty: true
 
   mongo:
     image: mongo:7

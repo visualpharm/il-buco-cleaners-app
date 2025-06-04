@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/database';
 
+export const dynamic = 'force-dynamic'; // This ensures the route is dynamic and not statically optimized
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

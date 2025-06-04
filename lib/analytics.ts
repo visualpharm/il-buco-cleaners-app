@@ -44,6 +44,21 @@ export async function trackClick(options: TrackClickOptions): Promise<boolean> {
   }
 }
 
+// Get analytics data
+export async function getAnalytics(): Promise<any[]> {
+  try {
+    const response = await fetch('/api/analytics');
+    if (!response.ok) {
+      throw new Error('Failed to fetch analytics data');
+    }
+    const data = await response.json();
+    return data.analytics || [];
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    throw error;
+  }
+}
+
 // Analytics helper functions
 export function getSessionId(): string {
   // Generate or retrieve session ID from sessionStorage
