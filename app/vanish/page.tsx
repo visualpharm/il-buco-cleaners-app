@@ -373,6 +373,29 @@ function VanishPageContent() {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-6">Control de Limpieza</h1>
       
+      {/* Debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-2 bg-gray-100 rounded text-sm">
+          <p>Debug: {limpiezas.length} limpiezas cargadas</p>
+          {limpiezas.length === 0 && (
+            <p className="text-orange-600">No hay datos de limpieza disponibles. Ve a la página principal para crear sesiones de limpieza.</p>
+          )}
+        </div>
+      )}
+      
+      {limpiezas.length === 0 && !isLoading && (
+        <div className="text-center py-8">
+          <h2 className="text-xl font-semibold text-gray-600 mb-4">No hay datos de limpieza</h2>
+          <p className="text-gray-500 mb-4">Aún no se han registrado sesiones de limpieza.</p>
+          <Button 
+            onClick={() => router.push('/')}
+            className="bg-blue-500 hover:bg-blue-600 text-white"
+          >
+            Ir a crear sesión de limpieza
+          </Button>
+        </div>
+      )}
+      
       {fechaSeleccionada ? (
         <div>
           <button 
@@ -411,7 +434,7 @@ function VanishPageContent() {
             ))}
           </div>
         </div>
-      ) : (
+      ) : limpiezas.length > 0 ? (
         <div>
           <h2 className="text-xl font-semibold mb-4">Seleccione una fecha</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -431,7 +454,7 @@ function VanishPageContent() {
             ))}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

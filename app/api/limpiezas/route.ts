@@ -50,7 +50,7 @@ export async function GET() {
     }
     
     // Fetch all cleaning records from the database
-    const limpiezas = await db.collection<LimpiezaDocument>('limpiezas')
+    const limpiezas = await db.collection<LimpiezaDocument>('checklistProgress')
       .find({})
       .sort({ horaInicio: -1 }) // Sort by most recent first
       .toArray();
