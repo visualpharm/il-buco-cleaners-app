@@ -15,6 +15,10 @@ Time format: 9:30, 12:50.
 
 Cleaning session (cs) is all operations performed during a single day, if there are no breaks by 1 hour or more. If there are, these are 2 separate sessions in one day.
 
+We don't ask for confirmations, but we allow to revert the operations, always if it's less than a page of the extra code. 
+
+if we show thumbnails of the photos somewhere, they should be 30x30px, 60x60px, or 120x120px (whatever suits better the encapsulating div) and on click opened with fancy zoom or similar library, and could be viewed as a gallery, with left-right buttons, space, etc.
+
 ### Key stats
 Key stats for the whole /vanish secion (ksv) are averages for the last 30 days: average cleaning session duration (defined as total dime / number of cleaning sessions), average time per room, average success rate (which is 100% - % of failed operations).
 

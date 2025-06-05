@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { formatTimeShort, formatDurationShort, formatDateDisplay } from "@/lib/dateUtils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronUp, ChevronDown, ArrowUpDown } from "lucide-react"
+import { ChevronUp, ChevronDown, ArrowUpDown, Camera, X, ChevronLeft, ChevronRight } from "lucide-react"
 
 // Loading component for Suspense fallback
 function Loading() {
@@ -38,7 +38,7 @@ interface StepData {
 }
 
 interface LimpiezaCompleta {
-  id: number
+  id: string
   habitacion: string
   tipo?: string
   horaInicio: Date
@@ -85,6 +85,14 @@ function VanishPageContent() {
   // Session detail view state
   const selectedSessionId = searchParams.get('session')
   const selectedSession = sessions.find(s => s.sessionId === selectedSessionId)
+  
+  // Failure marking state
+  const [markingFailure, setMarkingFailure] = useState<string | null>(null)
+  
+  // Photo gallery state
+  const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>([])
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
 
   // Fetch cleaning data
   useEffect(() => {
@@ -324,15 +332,91 @@ function VanishPageContent() {
     }
   }
 
-  // Handle failure marking
-  const handleMarkFailure = async (operationId: number, photoFile?: File) => {
+
+  // Toggle failure state
+  const toggleFailureState = async (operation: LimpiezaCompleta) => {
     try {
-      // TODO: Implement failure marking API call
-      console.log('Marking failure for operation:', operationId, photoFile)
-      // Refresh data after marking failure
+      setMarkingFailure(operation.id)
+      
+      const currentlyFailed = operation.fallado
+      const newFailedState = !currentlyFailed
+      
+      let fotoFalla = operation.fotoFalla // Keep existing photo
+      
+      // If clearing failure, remove photo
+      if (!newFailedState) {
+        fotoFalla = null
+      }
+      
+      await markFailure(operation.id, newFailedState, fotoFalla || null)
+    } catch (error) {
+      console.error('Error toggling failure state:', error)
+      setMarkingFailure(null)
+    }
+  }
+
+  // Handle photo upload for failed operations
+  const uploadFailurePhoto = async (operationId: string) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        try {
+          setMarkingFailure(operationId)
+          
+          const formData = new FormData()
+          formData.append('image', file)
+          
+          const uploadResponse = await fetch('/api/upload-image', {
+            method: 'POST',
+            body: formData
+          })
+          
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json()
+            
+            // Update operation with photo
+            await markFailure(operationId, true, uploadData.filename)
+          } else {
+            throw new Error('Error al subir la foto')
+          }
+        } catch (error) {
+          console.error('Error uploading photo:', error)
+          alert('Error al subir la foto: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+          setMarkingFailure(null)
+        }
+      }
+    }
+    input.click()
+  }
+
+  // Mark failure in database
+  const markFailure = async (operationId: string, failed: boolean, photo: string | null) => {
+    try {
+      const response = await fetch('/api/vanish', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operacionId: operationId,
+          fallado: failed,
+          fotoFalla: photo
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Error al actualizar el estado')
+      }
+      
+      // Refresh the page to show updated data
       window.location.reload()
     } catch (error) {
-      console.error('Error marking failure:', error)
+      console.error('Error updating failure state:', error)
+      alert('Error al actualizar el estado: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+      setMarkingFailure(null)
     }
   }
 
@@ -340,6 +424,95 @@ function VanishPageContent() {
   const navigateToSessionsList = () => {
     router.push('/vanish')
   }
+
+  // Photo gallery functions
+  const openGallery = (photos: string[], startIndex: number = 0) => {
+    setGalleryPhotos(photos)
+    setCurrentPhotoIndex(startIndex)
+    setGalleryOpen(true)
+  }
+
+  const closeGallery = () => {
+    setGalleryOpen(false)
+    setGalleryPhotos([])
+    setCurrentPhotoIndex(0)
+  }
+
+  const nextPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev + 1) % galleryPhotos.length)
+  }
+
+  const prevPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev - 1 + galleryPhotos.length) % galleryPhotos.length)
+  }
+
+  // Get all photos from an operation
+  const getOperationPhotos = (operation: LimpiezaCompleta): string[] => {
+    const photos: string[] = []
+    
+    // Add step photos
+    operation.pasos.forEach(paso => {
+      if (paso.foto) {
+        photos.push(paso.foto)
+      }
+      if (paso.fotoFalla) {
+        photos.push(paso.fotoFalla)
+      }
+    })
+    
+    // Add operation failure photo
+    if (operation.fotoFalla) {
+      photos.push(operation.fotoFalla)
+    }
+    
+    return photos
+  }
+
+  // Get all photos from a session
+  const getSessionPhotos = (session: CleaningSession): string[] => {
+    const photos: string[] = []
+    session.operations.forEach(operation => {
+      photos.push(...getOperationPhotos(operation))
+    })
+    return photos
+  }
+
+  // Helper function to format photo URL correctly
+  const getPhotoUrl = (photo: string): string => {
+    if (!photo) return ''
+    
+    // If it's already a full URL (starts with http), use it as is
+    if (photo.startsWith('http://') || photo.startsWith('https://')) {
+      return photo
+    }
+    
+    // If it's just a filename, prefix with /uploads/
+    return `/uploads/${photo}`
+  }
+
+  // Keyboard navigation for gallery
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!galleryOpen) return
+      
+      switch (event.key) {
+        case 'Escape':
+          closeGallery()
+          break
+        case 'ArrowLeft':
+          prevPhoto()
+          break
+        case 'ArrowRight':
+        case ' ':
+          event.preventDefault()
+          nextPhoto()
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [galleryOpen, galleryPhotos.length])
 
   if (isLoading) {
     return <Loading />
@@ -374,7 +547,17 @@ function VanishPageContent() {
               ← Volver
             </Button>
             <h1 className="text-3xl font-bold text-gray-900">
-              Detalles de Sesión - {formatDateDisplay(selectedSession.startTime)}
+              Detalles de Sesión - 
+              <a 
+                href="/vanish"
+                className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
+                onClick={(e) => {
+                  e.preventDefault()
+                  navigateToSessionsList()
+                }}
+              >
+                {formatDateDisplay(selectedSession.startTime)}
+              </a>
             </h1>
           </div>
           
@@ -450,7 +633,6 @@ function VanishPageContent() {
                   <tbody>
                     {selectedSession.operations.map((operation, index) => {
                       const ksrStats = calculateKSRStats(operation)
-                      const photosUploaded = operation.pasos.filter(p => p.foto).length
                       
                       return (
                         <tr 
@@ -458,7 +640,18 @@ function VanishPageContent() {
                           className="border-b hover:bg-gray-50 transition-colors"
                         >
                           <td className="p-3">
-                            <div className="font-medium">{operation.habitacion}</div>
+                            <div className="font-medium">
+                              <a 
+                                href="/"
+                                className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  router.push('/')
+                                }}
+                              >
+                                {operation.habitacion}
+                              </a>
+                            </div>
                             <div className="text-sm text-gray-500">{operation.tipo}</div>
                           </td>
                           <td className="p-3">
@@ -488,32 +681,61 @@ function VanishPageContent() {
                             </div>
                           </td>
                           <td className="p-3">
-                            <div className="font-medium">
-                              {photosUploaded} fotos
+                            <div className="flex flex-wrap gap-1">
+                              {getOperationPhotos(operation).map((photo, photoIndex) => (
+                                <img
+                                  key={photoIndex}
+                                  src={getPhotoUrl(photo)}
+                                  alt={`Foto ${photoIndex + 1}`}
+                                  className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                                  onClick={() => openGallery(getOperationPhotos(operation), photoIndex)}
+                                />
+                              ))}
+                              {getOperationPhotos(operation).length === 0 && (
+                                <span className="text-gray-400 text-sm">Sin fotos</span>
+                              )}
                             </div>
-                            {photosUploaded > 0 && (
-                              <Button 
-                                variant="link" 
-                                size="sm" 
-                                className="text-blue-600 p-0 h-auto"
-                                onClick={() => {
-                                  // TODO: Show photos modal
-                                  console.log('Show photos for operation:', operation.id)
-                                }}
-                              >
-                                Ver fotos
-                              </Button>
-                            )}
                           </td>
                           <td className="p-3">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="text-red-600 border-red-600 hover:bg-red-50"
-                              onClick={() => handleMarkFailure(operation.id)}
-                            >
-                              Marcar Falla
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                className={
+                                  markingFailure === operation.id
+                                    ? "bg-gray-800 text-white border-gray-800" // Pressed/inverted state
+                                    : operation.fallado 
+                                      ? "bg-gray-800 text-white border-gray-800 hover:bg-gray-700" // Failed state
+                                      : "text-black border-black hover:bg-gray-100" // Normal state
+                                }
+                                onClick={() => toggleFailureState(operation)}
+                                disabled={markingFailure === operation.id}
+                              >
+                                Falla
+                              </Button>
+                              
+                              {operation.fallado && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                                  onClick={() => uploadFailurePhoto(operation.id)}
+                                  disabled={markingFailure === operation.id}
+                                  title={operation.fotoFalla ? "Cambiar foto" : "Subir foto"}
+                                >
+                                  <Camera className="w-4 h-4" />
+                                  {operation.fotoFalla && (
+                                    <span className="ml-1 text-xs">✓</span>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                            
+                            {operation.fotoFalla && (
+                              <div className="text-xs text-green-600 mt-1 font-medium">
+                                📷 Foto incluida
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )
@@ -629,7 +851,7 @@ function VanishPageContent() {
                           {getSortIcon('successRate')}
                         </div>
                       </th>
-                      <th className="text-left p-3 font-medium text-gray-700">Acciones</th>
+                      <th className="text-left p-3 font-medium text-gray-700">Fotos</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -640,7 +862,16 @@ function VanishPageContent() {
                       >
                         <td className="p-3">
                           <div className="font-medium">
-                            {formatDateDisplay(session.startTime)}
+                            <a 
+                              href={`/vanish?session=${session.sessionId}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                router.push(`/vanish?session=${session.sessionId}`)
+                              }}
+                            >
+                              {formatDateDisplay(session.startTime)}
+                            </a>
                           </div>
                           <div className="text-sm text-gray-500">
                             {formatTimeShort(session.endTime)} fin
@@ -668,16 +899,26 @@ function VanishPageContent() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => {
-                              // Navigate to session details
-                              router.push(`/vanish?session=${session.sessionId}`)
-                            }}
-                          >
-                            Ver Detalles
-                          </Button>
+                          <div className="flex flex-wrap gap-1">
+                            {getSessionPhotos(session).slice(0, 6).map((photo, photoIndex) => (
+                              <img
+                                key={photoIndex}
+                                src={getPhotoUrl(photo)}
+                                alt={`Foto ${photoIndex + 1}`}
+                                className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                                onClick={() => openGallery(getSessionPhotos(session), photoIndex)}
+                              />
+                            ))}
+                            {getSessionPhotos(session).length > 6 && (
+                              <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-xs cursor-pointer hover:bg-gray-300"
+                                   onClick={() => openGallery(getSessionPhotos(session), 6)}>
+                                +{getSessionPhotos(session).length - 6}
+                              </div>
+                            )}
+                            {getSessionPhotos(session).length === 0 && (
+                              <span className="text-gray-400 text-sm">Sin fotos</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -698,6 +939,69 @@ function VanishPageContent() {
               </Button>
             </CardContent>
           </Card>
+        )}
+
+        {/* Photo Gallery Modal */}
+        {galleryOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+            <div className="relative w-full h-full flex items-center justify-center">
+              {/* Close button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-4 right-4 text-white hover:bg-white hover:bg-opacity-20 z-10"
+                onClick={closeGallery}
+              >
+                <X className="w-6 h-6" />
+              </Button>
+
+              {/* Previous button */}
+              {galleryPhotos.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute left-4 text-white hover:bg-white hover:bg-opacity-20"
+                  onClick={prevPhoto}
+                >
+                  <ChevronLeft className="w-8 h-8" />
+                </Button>
+              )}
+
+              {/* Current photo */}
+              <div className="max-w-[90vw] max-h-[90vh] flex items-center justify-center">
+                <img
+                  src={getPhotoUrl(galleryPhotos[currentPhotoIndex])}
+                  alt={`Foto ${currentPhotoIndex + 1} de ${galleryPhotos.length}`}
+                  className="max-w-full max-h-full object-contain"
+                  style={{ imageRendering: 'auto' }}
+                />
+              </div>
+
+              {/* Next button */}
+              {galleryPhotos.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-4 text-white hover:bg-white hover:bg-opacity-20"
+                  onClick={nextPhoto}
+                >
+                  <ChevronRight className="w-8 h-8" />
+                </Button>
+              )}
+
+              {/* Photo counter */}
+              {galleryPhotos.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded">
+                  {currentPhotoIndex + 1} de {galleryPhotos.length}
+                </div>
+              )}
+
+              {/* Instructions */}
+              <div className="absolute bottom-4 right-4 text-white text-sm opacity-70">
+                Usa ← → o Espacio para navegar • Esc para cerrar
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
