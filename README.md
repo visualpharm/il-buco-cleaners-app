@@ -1,6 +1,32 @@
 # Limpieza del Buco
-
 This is the app checklist for cleaners of an Airbnb property [https://ilbuco.com.ar](https://ilbuco.com.ar), but could be adopted to any other property with a bit of vibe coding.
+
+## Marketing text
+
+**Tired of chaotic property cleanings? Of triple-checking every task?**  
+This tool helps you and your cleaners follow clear steps — with proof when needed.
+
+### Core Features
+
+- ✅ **Customizable Checklists**
+  - Different steps per room type
+  - Grouped by inspection, cleaning, closing
+  - Photo required only for steps that often fail
+
+- 🖼️ **AI-Assisted Photo Validation** *(coming soon)*
+  - Automatically checks images of key steps  
+  - Always allows human override  
+  - Builds visual proof history
+
+- 📊 **Cleaner Analytics** *(beta)*
+  - Track time, completion, and failed steps  
+  - See who did what, and when — no guessing
+
+---
+
+**Work in progress. Already useful. Not a finished product.**  
+Best for: Airbnb, hotels, offices — any property that needs consistent cleaning.
+
 
 ## Installation
 
@@ -16,7 +42,7 @@ npm install
 
 MIT License
 
-Copyright (c) 2025 aiandtractors.com
+Copyright (c) 2025 Il Buco
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
