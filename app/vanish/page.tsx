@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { formatTimeShort, formatDurationShort, formatDateDisplay } from "@/lib/dateUtils"
+import { formatTimeShort, formatDateDisplay } from "@/lib/dateUtils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown, ArrowUpDown, Camera, X, ChevronLeft, ChevronRight } from "lucide-react"
@@ -14,6 +14,61 @@ function Loading() {
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
     </div>
   )
+}
+
+// Step definitions - copied from main page.tsx
+const CHECKLIST_HABITACIONES = [
+  { id: 1, categoria: "Inspección inicial", texto: "Entramos: Tocar la puerta, Entrar y verificar si hubo check-out" },
+  { id: 2, categoria: "Revisión para lavar", texto: "Revisar si hace falta lavar: Fundas decorativas de almohadas, Funda de futón, Mantas, pie de cama, Cortinas" },
+  { id: 3, categoria: "Limpieza", texto: "Aspirar: Colchón, Piso, Alfombras pequeñas" },
+  { id: 4, categoria: "Limpieza", texto: "Limpiar muebles: Mesitas de luz (adentro y afuera), Mesa, Sillas, Repisa" },
+  { id: 5, categoria: "Limpieza", texto: "Limpiar ventanas, ventanales y espejos" },
+  { id: 6, categoria: "Limpieza", texto: "Tender la cama: Colocar la sábana, Poner las fundas de almohada, Alinear bien la funda del acolchado, Colocar el pie de cama con arrugas, Dejar la manta polar en la mesita de luz" },
+  { id: 7, categoria: "Limpieza", texto: "Limpiar baño: Inodoro, Bidet, Ducha, Cortina/vidrio, Lavatorio, Azulejos, Piso, Espejo" },
+  { id: 8, categoria: "Limpieza", texto: "Limpiar cocina: Mesada, Bacha, Canillas, Heladera (adentro y afuera), Microondas (adentro y afuera), Horno, Anafe, Azulejos, Alacenas (adentro y afuera), Cesto de basura, Secar todo" },
+  { id: 9, categoria: "Verificación", texto: "Verificar productos de limpieza: 1 Detergente para platos, 1 Esponja, 1 Secador, 1 Papel higiénico de repuesto, 1 Jabón en pan, 1 Shampoo, 1 Acondicionador" },
+  { id: 10, categoria: "Verificación", texto: "Verificar elementos de cocina: 2 Platos, 2 Platos hondos, 2 Tazas de café, 2 Vasos, 1 Olla, 1 Sartén, 1 Pava, 1 Botella térmica" },
+  { id: 11, categoria: "Verificación", texto: "Verificar cubiertos: 2 tenedores, 2 cuchillos, 2 cucharas, 2 cucharitas, 1 cuchillo de cocina" },
+  { id: 12, categoria: "Verificación", texto: "Verificar ropa de cama: 1 Sábana, 2 Fundas de almohada, 1 Funda de acolchado, 1 Manta polar, 1 Pie de cama" },
+  { id: 13, categoria: "Verificación", texto: "Verificar toallas: 2 Toallas de cuerpo, 2 Toallones, 2 Toallas de mano" },
+  { id: 14, categoria: "Verificación", texto: "Revisar elementos de bienvenida: Café, Azúcar, Endulzante, Té, Agua, Yerba, Galletitas" },
+  { id: 15, categoria: "Verificación", texto: "Revisar y reponer papel higiénico" },
+  { id: 16, categoria: "Verificación", texto: "Verificar que todo funcione: Luces, Aire acondicionado, Calefactor, TV, Heladera, Microondas, Ducha (agua fría y caliente), WiFi" },
+  { id: 17, categoria: "Manejo de basura", texto: "Manejo de basura: Tirar la basura de todos los tachos, Poner 1 bolsa nueva, Dejar 2 bolsas de repuesto" },
+  { id: 18, categoria: "Finalización", texto: "Verificar que esté todo en orden: Luces apagadas, Ventanas cerradas, Puerta trabada" }
+]
+
+const CHECKLIST_PARRILLA = [
+  { id: 1, categoria: "Verificación", texto: "Verificar la parrilla: La rejilla tiene que estar limpia, Tirar cenizas, Pasar un trapo por la mesa y la bacha, Todas las sillas deben estar alrededor de la mesa, Barrer el piso si es necesario" }
+]
+
+const CHECKLIST_ESCALERA = [
+  { id: 1, categoria: "Limpieza", texto: "Barrer escalones" },
+  { id: 2, categoria: "Paquetes", texto: "Paquetes: Chequear si quedaron nuevos paquetes de Mercado Libre, Si hay paquetes, abrir y tratar de distribuir" },
+  { id: 3, categoria: "Falta algo", texto: "Falta algo: Escribir a Ivan o su asistente las cosas que faltan, Ofrecer de comprar los items faltantes si es posible" }
+]
+
+// Helper function to get the right checklist based on room type
+const obtenerChecklist = (tipo: string) => {
+  switch (tipo) {
+    case "parrilla":
+      return CHECKLIST_PARRILLA
+    case "escalera":  
+      return CHECKLIST_ESCALERA
+    default:
+      return CHECKLIST_HABITACIONES
+  }
+}
+
+// Helper function to get step title
+const getStepTitle = (stepId: number, roomType?: string): string => {
+  const checklist = obtenerChecklist(roomType || "")
+  const step = checklist.find(s => s.id === stepId)
+  if (!step) return `Paso ${stepId}`
+  
+  // Crop title at the colon if it exists
+  const colonIndex = step.texto.indexOf(':')
+  return colonIndex !== -1 ? step.texto.substring(0, colonIndex) : step.texto
 }
 
 // Define types
@@ -85,6 +140,10 @@ function VanishPageContent() {
   // Session detail view state
   const selectedSessionId = searchParams.get('session')
   const selectedSession = sessions.find(s => s.sessionId === selectedSessionId)
+  
+  // Operation detail view state
+  const selectedOperationId = searchParams.get('operation')
+  const selectedOperation = selectedSession?.operations.find(op => op.id === selectedOperationId)
   
   // Failure marking state
   const [markingFailure, setMarkingFailure] = useState<string | null>(null)
@@ -345,12 +404,24 @@ function VanishPageContent() {
       
       // If clearing failure, remove photo
       if (!newFailedState) {
-        fotoFalla = null
+        fotoFalla = undefined
       }
       
-      await markFailure(operation.id, newFailedState, fotoFalla || null)
+      await markFailure(operation.id, newFailedState, fotoFalla || undefined)
     } catch (error) {
       console.error('Error toggling failure state:', error)
+      setMarkingFailure(null)
+    }
+  }
+
+  // Remove failure photo
+  const removeFailurePhoto = async (operationId: string) => {
+    try {
+      setMarkingFailure(operationId)
+      await markFailure(operationId, true, undefined) // Keep failed state but remove photo
+    } catch (error) {
+      console.error('Error removing photo:', error)
+      alert('Error al eliminar la foto: ' + (error instanceof Error ? error.message : 'Error desconocido'))
       setMarkingFailure(null)
     }
   }
@@ -367,7 +438,7 @@ function VanishPageContent() {
           setMarkingFailure(operationId)
           
           const formData = new FormData()
-          formData.append('image', file)
+          formData.append('file', file)
           
           const uploadResponse = await fetch('/api/upload-image', {
             method: 'POST',
@@ -377,10 +448,14 @@ function VanishPageContent() {
           if (uploadResponse.ok) {
             const uploadData = await uploadResponse.json()
             
-            // Update operation with photo
-            await markFailure(operationId, true, uploadData.filename)
+            // Update operation with photo - use the full path from URL or construct it
+            const photoPath = uploadData.url.includes('/general/') 
+              ? uploadData.url.split('/uploads/')[1] // Extract "general/filename.jpg"
+              : `general/${uploadData.filename}` // Fallback: construct path
+            await markFailure(operationId, true, photoPath)
           } else {
-            throw new Error('Error al subir la foto')
+            const errorData = await uploadResponse.json().catch(() => ({ error: 'Error desconocido' }))
+            throw new Error(errorData.error || 'Error al subir la foto')
           }
         } catch (error) {
           console.error('Error uploading photo:', error)
@@ -393,7 +468,7 @@ function VanishPageContent() {
   }
 
   // Mark failure in database
-  const markFailure = async (operationId: string, failed: boolean, photo: string | null) => {
+  const markFailure = async (operationId: string, failed: boolean, photo: string | undefined) => {
     try {
       const response = await fetch('/api/vanish', {
         method: 'PUT',
@@ -411,11 +486,95 @@ function VanishPageContent() {
         throw new Error('Error al actualizar el estado')
       }
       
-      // Refresh the page to show updated data
-      window.location.reload()
+      // Update local state instead of reloading
+      setLimpiezas(prevLimpiezas => 
+        prevLimpiezas.map(limpieza => 
+          limpieza.id === operationId 
+            ? { ...limpieza, fallado: failed, fotoFalla: photo }
+            : limpieza
+        )
+      )
+      
+      // Update sessions state as well
+      setSessions(prevSessions => 
+        prevSessions.map(session => ({
+          ...session,
+          operations: session.operations.map(op => 
+            op.id === operationId 
+              ? { ...op, fallado: failed, fotoFalla: photo }
+              : op
+          )
+        }))
+      )
+      
+      setMarkingFailure(null)
     } catch (error) {
       console.error('Error updating failure state:', error)
       alert('Error al actualizar el estado: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+      setMarkingFailure(null)
+    }
+  }
+
+  // Toggle step-level failure
+  const toggleStepFailure = async (operationId: string, stepId: number, failed: boolean) => {
+    try {
+      setMarkingFailure(`step-${stepId}`)
+      
+      const response = await fetch('/api/vanish', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operacionId: operationId,
+          stepId: stepId,
+          stepFallado: failed
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Error al actualizar el paso')
+      }
+      
+      // Update local state instead of reloading
+      setLimpiezas(prevLimpiezas => 
+        prevLimpiezas.map(limpieza => 
+          limpieza.id === operationId 
+            ? { 
+                ...limpieza, 
+                pasos: limpieza.pasos.map(paso => 
+                  paso.id === stepId 
+                    ? { ...paso, fallado: failed }
+                    : paso
+                )
+              }
+            : limpieza
+        )
+      )
+      
+      // Update sessions state as well
+      setSessions(prevSessions => 
+        prevSessions.map(session => ({
+          ...session,
+          operations: session.operations.map(op => 
+            op.id === operationId 
+              ? { 
+                  ...op, 
+                  pasos: op.pasos.map(paso => 
+                    paso.id === stepId 
+                      ? { ...paso, fallado: failed }
+                      : paso
+                  )
+                }
+              : op
+          )
+        }))
+      )
+      
+      setMarkingFailure(null)
+    } catch (error) {
+      console.error('Error updating step failure:', error)
+      alert('Error al actualizar el paso: ' + (error instanceof Error ? error.message : 'Error desconocido'))
       setMarkingFailure(null)
     }
   }
@@ -446,7 +605,21 @@ function VanishPageContent() {
     setCurrentPhotoIndex((prev) => (prev - 1 + galleryPhotos.length) % galleryPhotos.length)
   }
 
-  // Get all photos from an operation
+  // Get only cleaner photos from an operation (exclude failure photos)
+  const getOperationCleanerPhotos = (operation: LimpiezaCompleta): string[] => {
+    const photos: string[] = []
+    
+    // Add only step photos taken by cleaner (not failure photos)
+    operation.pasos.forEach(paso => {
+      if (paso.foto) {
+        photos.push(paso.foto)
+      }
+    })
+    
+    return photos
+  }
+
+  // Get all photos from an operation (including failure photos for gallery)
   const getOperationPhotos = (operation: LimpiezaCompleta): string[] => {
     const photos: string[] = []
     
@@ -468,7 +641,16 @@ function VanishPageContent() {
     return photos
   }
 
-  // Get all photos from a session
+  // Get only cleaner photos from a session (exclude failure photos)
+  const getSessionCleanerPhotos = (session: CleaningSession): string[] => {
+    const photos: string[] = []
+    session.operations.forEach(operation => {
+      photos.push(...getOperationCleanerPhotos(operation))
+    })
+    return photos
+  }
+
+  // Get all photos from a session (including failure photos for gallery)
   const getSessionPhotos = (session: CleaningSession): string[] => {
     const photos: string[] = []
     session.operations.forEach(operation => {
@@ -528,6 +710,188 @@ function VanishPageContent() {
               Recargar página
             </Button>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show operation detail view if an operation is selected
+  if (selectedOperation && selectedSession) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center mb-6">
+            <Button 
+              variant="outline" 
+              onClick={() => router.push(`/vanish?session=${selectedSessionId}`)}
+              className="mr-4"
+            >
+              ← Volver a Sesión
+            </Button>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Operaciones en {selectedOperation.habitacion} - 
+              <a 
+                href={`/vanish?session=${selectedSessionId}`}
+                className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
+                onClick={(e) => {
+                  e.preventDefault()
+                  router.push(`/vanish?session=${selectedSessionId}`)
+                }}
+              >
+                {formatDateDisplay(selectedSession.startTime)}
+              </a>
+            </h1>
+          </div>
+          
+          {/* Operation Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Habitación</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold text-blue-600">
+                  {selectedOperation.habitacion}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">{selectedOperation.tipo}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Duración</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold text-green-600">
+                  {formatDuration(calculateKSRStats(selectedOperation).duration)}
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Pasos Completados</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-bold text-purple-600">
+                  {calculateKSRStats(selectedOperation).completedSteps}/{calculateKSRStats(selectedOperation).totalSteps}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">{calculateKSRStats(selectedOperation).completionRate.toFixed(1)}% completado</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Tasa de Éxito</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-xl font-bold ${
+                  calculateKSRStats(selectedOperation).successRate >= 95 ? 'text-green-600' :
+                  calculateKSRStats(selectedOperation).successRate >= 80 ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {calculateKSRStats(selectedOperation).successRate.toFixed(1)}%
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Operation Steps Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Pasos Realizados</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b bg-gray-50">
+                      <th className="text-left p-3 font-medium text-gray-700">Paso</th>
+                      <th className="text-left p-3 font-medium text-gray-700">Hora</th>
+                      <th className="text-left p-3 font-medium text-gray-700">Duración</th>
+                      <th className="text-left p-3 font-medium text-gray-700">Estado</th>
+                      <th className="text-left p-3 font-medium text-gray-700">Foto</th>
+                      <th className="text-left p-3 font-medium text-gray-700">Falla</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedOperation.pasos.map((paso, index) => (
+                      <tr 
+                        key={paso.id || index}
+                        className="border-b hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="p-3">
+                          <div className="font-medium">{getStepTitle(paso.id, selectedOperation.tipo)}</div>
+                          <div className="text-sm text-gray-500">Paso {paso.id}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="font-medium">
+                            {paso.horaInicio ? formatTimeShort(new Date(paso.horaInicio)) : '-'}
+                          </div>
+                          {paso.horaCompletado && (
+                            <div className="text-sm text-gray-500">
+                              Fin: {formatTimeShort(new Date(paso.horaCompletado))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <div className="font-medium">
+                            {paso.tiempoTranscurrido ? formatDuration(paso.tiempoTranscurrido / 60) : '-'}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className={`font-medium ${
+                            paso.horaCompletado ? 'text-green-600' : 'text-gray-400'
+                          }`}>
+                            {paso.horaCompletado ? 'Completado' : 'Pendiente'}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex gap-1">
+                            {paso.foto && (
+                              <img
+                                src={getPhotoUrl(paso.foto)}
+                                alt="Foto del paso"
+                                className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                                onClick={() => openGallery(paso.foto ? [paso.foto] : [], 0)}
+                              />
+                            )}
+                            {paso.fotoFalla && (
+                              <img
+                                src={getPhotoUrl(paso.fotoFalla)}
+                                alt="Foto de falla"
+                                className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-red-200"
+                                onClick={() => openGallery(paso.fotoFalla ? [paso.fotoFalla] : [], 0)}
+                              />
+                            )}
+                            {!paso.foto && !paso.fotoFalla && (
+                              <span className="text-gray-400 text-sm">Sin fotos</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            className={
+                              markingFailure === `step-${paso.id}`
+                                ? "bg-gray-800 text-white border-gray-800"
+                                : paso.fallado 
+                                  ? "bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
+                                  : "text-black border-black hover:bg-gray-100"
+                            }
+                            onClick={() => toggleStepFailure(selectedOperation.id, paso.id, !paso.fallado)}
+                            disabled={markingFailure === `step-${paso.id}`}
+                          >
+                            Falla
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     )
@@ -642,11 +1006,11 @@ function VanishPageContent() {
                           <td className="p-3">
                             <div className="font-medium">
                               <a 
-                                href="/"
+                                href={`/vanish?session=${selectedSession.sessionId}&operation=${operation.id}`}
                                 className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                                 onClick={(e) => {
                                   e.preventDefault()
-                                  router.push('/')
+                                  router.push(`/vanish?session=${selectedSession.sessionId}&operation=${operation.id}`)
                                 }}
                               >
                                 {operation.habitacion}
@@ -682,16 +1046,16 @@ function VanishPageContent() {
                           </td>
                           <td className="p-3">
                             <div className="flex flex-wrap gap-1">
-                              {getOperationPhotos(operation).map((photo, photoIndex) => (
+                              {getOperationCleanerPhotos(operation).map((photo, photoIndex) => (
                                 <img
                                   key={photoIndex}
                                   src={getPhotoUrl(photo)}
                                   alt={`Foto ${photoIndex + 1}`}
                                   className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
-                                  onClick={() => openGallery(getOperationPhotos(operation), photoIndex)}
+                                  onClick={() => openGallery(getOperationPhotos(operation), getOperationPhotos(operation).indexOf(photo))}
                                 />
                               ))}
-                              {getOperationPhotos(operation).length === 0 && (
+                              {getOperationCleanerPhotos(operation).length === 0 && (
                                 <span className="text-gray-400 text-sm">Sin fotos</span>
                               )}
                             </div>
@@ -715,27 +1079,41 @@ function VanishPageContent() {
                               </Button>
                               
                               {operation.fallado && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                                  onClick={() => uploadFailurePhoto(operation.id)}
-                                  disabled={markingFailure === operation.id}
-                                  title={operation.fotoFalla ? "Cambiar foto" : "Subir foto"}
-                                >
-                                  <Camera className="w-4 h-4" />
-                                  {operation.fotoFalla && (
-                                    <span className="ml-1 text-xs">✓</span>
-                                  )}
-                                </Button>
+                                operation.fotoFalla ? (
+                                  // Show photo preview with remove button
+                                  <div className="flex items-center gap-1">
+                                    <img
+                                      src={getPhotoUrl(operation.fotoFalla)}
+                                      alt="Foto de falla"
+                                      className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-red-200"
+                                      onClick={() => openGallery([operation.fotoFalla!], 0)}
+                                    />
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-red-600 border-red-600 hover:bg-red-50 p-1 h-6 w-6"
+                                      onClick={() => removeFailurePhoto(operation.id)}
+                                      disabled={markingFailure === operation.id}
+                                      title="Eliminar foto"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  // Show camera button when no photo
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                                    onClick={() => uploadFailurePhoto(operation.id)}
+                                    disabled={markingFailure === operation.id}
+                                    title="Subir foto"
+                                  >
+                                    <Camera className="w-4 h-4" />
+                                  </Button>
+                                )
                               )}
                             </div>
-                            
-                            {operation.fotoFalla && (
-                              <div className="text-xs text-green-600 mt-1 font-medium">
-                                📷 Foto incluida
-                              </div>
-                            )}
                           </td>
                         </tr>
                       )
@@ -900,22 +1278,22 @@ function VanishPageContent() {
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
-                            {getSessionPhotos(session).slice(0, 6).map((photo, photoIndex) => (
+                            {getSessionCleanerPhotos(session).slice(0, 6).map((photo, photoIndex) => (
                               <img
                                 key={photoIndex}
                                 src={getPhotoUrl(photo)}
                                 alt={`Foto ${photoIndex + 1}`}
                                 className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
-                                onClick={() => openGallery(getSessionPhotos(session), photoIndex)}
+                                onClick={() => openGallery(getSessionPhotos(session), getSessionPhotos(session).indexOf(photo))}
                               />
                             ))}
-                            {getSessionPhotos(session).length > 6 && (
+                            {getSessionCleanerPhotos(session).length > 6 && (
                               <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-xs cursor-pointer hover:bg-gray-300"
                                    onClick={() => openGallery(getSessionPhotos(session), 6)}>
-                                +{getSessionPhotos(session).length - 6}
+                                +{getSessionCleanerPhotos(session).length - 6}
                               </div>
                             )}
-                            {getSessionPhotos(session).length === 0 && (
+                            {getSessionCleanerPhotos(session).length === 0 && (
                               <span className="text-gray-400 text-sm">Sin fotos</span>
                             )}
                           </div>

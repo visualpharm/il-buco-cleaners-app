@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -229,12 +230,9 @@ const CHECKLIST_PARRILLA = [
 
 // Checklist para escalera/hall
 const CHECKLIST_ESCALERA = [
-  { id: 1, categoria: "Limpieza", texto: "Aspirar escalones" },
-  { id: 2, categoria: "Limpieza", texto: "Limpiar barandas" },
-  { id: 3, categoria: "Paquetes", texto: "Chequear si quedaron nuevos paquetes de Mercado Libre" },
-  { id: 4, categoria: "Paquetes", texto: "Si hay paquetes, abrir y tratar de distribuir" },
-  { id: 5, categoria: "Comunicación", texto: "Escribir a Ivan o su asistente las cosas que faltan" },
-  { id: 6, categoria: "Comunicación", texto: "Ofrecer de comprar los items faltantes si es posible" },
+  { id: 1, categoria: "Limpieza", texto: "Barrer escalones" },
+  { id: 2, categoria: "Paquetes", texto: "Paquetes: Chequear si quedaron nuevos paquetes de Mercado Libre, Si hay paquetes\\, abrir y tratar de distribuir" },
+  { id: 3, categoria: "Falta algo", texto: "Falta algo: Escribir a Ivan o su asistente las cosas que faltan, Ofrecer de comprar los items faltantes si es posible" },
 ]
 
 // Simulación de validación IA con análisis detallado
@@ -260,7 +258,7 @@ const validarFotoConIA = async (
     return {
       esValida: true,
       analisis: {
-        esperaba: "La IA dice que el lugar no está en condiciones, ¿es así?",
+        esperaba: "Foto validada correctamente",
         encontro: "",
       },
     };
@@ -299,12 +297,25 @@ interface SesionLimpieza {
 type Habitacion = (typeof HABITACIONES)[number]
 
 export default function LimpiezaPage() {
-  const [habitacionSeleccionada, setHabitacionSeleccionada] = useState<Habitacion | null>(null)
-  const [pasoActual, setPasoActual] = useState<number>(0)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  
+  // URL-based state
+  const roomFromUrl = searchParams.get('room')
+  const stepFromUrl = parseInt(searchParams.get('step') || '0')
+  const photoRequired = searchParams.get('photo') === 'required'
+  const validatingPhoto = searchParams.get('validating') === 'true'
+  const awaitingCorrection = searchParams.get('correction') === 'true'
+  const sessionId = searchParams.get('session')
+  
+  const [habitacionSeleccionada, setHabitacionSeleccionada] = useState<Habitacion | null>(
+    roomFromUrl ? HABITACIONES.find(h => h.nombre.toLowerCase().replace(/\s+/g, '-') === roomFromUrl) || null : null
+  )
+  const [pasoActual, setPasoActual] = useState<number>(stepFromUrl)
   const [datosLimpieza, setDatosLimpieza] = useState<StepData[]>([])
   const [horaInicioLimpieza, setHoraInicioLimpieza] = useState<Date | null>(null)
-  const [validandoFoto, setValidandoFoto] = useState<boolean>(false)
-  const [esperandoCorreccion, setEsperandoCorreccion] = useState<boolean>(false)
+  const [validandoFoto, setValidandoFoto] = useState<boolean>(validatingPhoto)
+  const [esperandoCorreccion, setEsperandoCorreccion] = useState<boolean>(awaitingCorrection)
   const [sesionActual, setSesionActual] = useState<SesionLimpieza | null>(null)
   const [fotoRequerida, setFotoRequerida] = useState<any>(null)
   const [cleaningStats, setCleaningStats] = useState({
@@ -314,6 +325,26 @@ export default function LimpiezaPage() {
     loading: true
   });
 
+  // Helper function to convert room name to URL slug
+  const roomToSlug = (habitacion: Habitacion): string => {
+    return habitacion.nombre.toLowerCase().replace(/\s+/g, '-')
+  }
+
+  // Helper function to update URL parameters
+  const updateURL = (params: { [key: string]: string | number | boolean | null }) => {
+    const url = new URL(window.location.href)
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === null || value === false || value === '' || value === 0) {
+        url.searchParams.delete(key)
+      } else {
+        url.searchParams.set(key, String(value))
+      }
+    })
+    
+    router.push(url.pathname + url.search)
+  }
+
   // Format minutes to HHh MMm
   const formatDuration = (minutes: number) => {
     if (!minutes) return '0m';
@@ -321,6 +352,41 @@ export default function LimpiezaPage() {
     const mins = minutes % 60;
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
+
+  // Restore state from URL on component mount and URL changes
+  useEffect(() => {
+    // If we have URL parameters, restore the cleaning state
+    if (roomFromUrl && habitacionSeleccionada && stepFromUrl > 0) {
+      // Initialize session if we have a session ID
+      if (sessionId) {
+        const existingSession = localStorage.getItem('sesionLimpieza')
+        if (existingSession) {
+          const parsed = JSON.parse(existingSession)
+          if (parsed.id === sessionId) {
+            setSesionActual(parsed)
+          }
+        }
+      }
+      
+      // Initialize cleaning data for the current step
+      if (datosLimpieza.length === 0) {
+        const checklist = obtenerChecklist(habitacionSeleccionada.tipo)
+        const newData: StepData[] = []
+        
+        // Create data for all steps up to current step
+        for (let i = 0; i <= stepFromUrl; i++) {
+          newData.push({
+            id: checklist[i].id,
+            horaInicio: new Date(), // Would ideally come from database
+            horaCompletado: i < stepFromUrl ? new Date() : undefined
+          })
+        }
+        
+        setDatosLimpieza(newData)
+        setHoraInicioLimpieza(new Date())
+      }
+    }
+  }, [roomFromUrl, stepFromUrl, habitacionSeleccionada, sessionId])
 
   // Save a completed cleaning session
   const saveCompletedSession = async (roomName: string, durationMinutes: number, stepsCompleted: number, totalSteps: number) => {
@@ -428,6 +494,13 @@ export default function LimpiezaPage() {
     setHabitacionSeleccionada(habitacion)
     setHoraInicioLimpieza(new Date())
     setPasoActual(0)
+    
+    // Update URL with room and step parameters
+    updateURL({
+      room: roomToSlug(habitacion),
+      step: 0,
+      session: sesion.id
+    })
 
     // Actualizar habitaciones limpiadas en la sesión
     if (sesion && !sesion.habitacionesLimpiadas.includes(habitacion.nombre)) {
@@ -619,16 +692,43 @@ export default function LimpiezaPage() {
         horaInicio: new Date(),
       }
       setDatosLimpieza([...datosActualizados, siguientePaso])
-      setPasoActual(pasoActual + 1)
+      const nextStep = pasoActual + 1
+      setPasoActual(nextStep)
+      
+      // Update URL with new step
+      if (habitacionSeleccionada) {
+        updateURL({
+          room: roomToSlug(habitacionSeleccionada),
+          step: nextStep,
+          session: sesionActual?.id || null
+        })
+      }
     } else {
       // Limpieza completada
       await guardarLimpiezaCompleta(datosActualizados)
+      
+      // Clear URL parameters when room is completed
+      updateURL({
+        room: null,
+        step: null,
+        session: sesionActual?.id || null
+      })
     }
   }
 
   const confirmarCorreccion = () => {
     setEsperandoCorreccion(false);
     const datosActualizados = [...datosLimpieza];
+    
+    // Update URL to remove correction state
+    if (habitacionSeleccionada) {
+      updateURL({
+        room: roomToSlug(habitacionSeleccionada),
+        step: pasoActual,
+        session: sesionActual?.id || null,
+        correction: null
+      })
+    }
     
     if (datosActualizados[pasoActual]) {
       datosActualizados[pasoActual] = {
@@ -822,7 +922,15 @@ export default function LimpiezaPage() {
             <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-green-800 mb-2">¡Limpieza Completada!</h2>
             <p className="text-gray-600 mb-6">{habitacionSeleccionada!.nombre} ha sido limpiada correctamente</p>
-            <Button onClick={() => setHabitacionSeleccionada(null)} className="w-full">
+            <Button onClick={() => {
+              setHabitacionSeleccionada(null)
+              // Return to room selection
+              updateURL({
+                room: null,
+                step: null,
+                session: sesionActual?.id || null
+              })
+            }} className="w-full">
               Continuar con otra habitación
             </Button>
           </CardContent>
@@ -858,9 +966,24 @@ export default function LimpiezaPage() {
             size="icon"
             onClick={() => {
               if (pasoActual > 0) {
-                setPasoActual(pasoActual - 1);
+                const prevStep = pasoActual - 1
+                setPasoActual(prevStep);
+                // Update URL for previous step
+                if (habitacionSeleccionada) {
+                  updateURL({
+                    room: roomToSlug(habitacionSeleccionada),
+                    step: prevStep,
+                    session: sesionActual?.id || null
+                  })
+                }
               } else {
                 setHabitacionSeleccionada(null);
+                // Go back to room selection
+                updateURL({
+                  room: null,
+                  step: null,
+                  session: sesionActual?.id || null
+                })
               }
             }}
           >

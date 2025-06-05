@@ -19,6 +19,11 @@ We don't ask for confirmations, but we allow to revert the operations, always if
 
 if we show thumbnails of the photos somewhere, they should be 30x30px, 60x60px, or 120x120px (whatever suits better the encapsulating div) and on click opened with fancy zoom or similar library, and could be viewed as a gallery, with left-right buttons, space, etc.
 
+### Development Notes
+
+#### Photo Upload Issues
+If photo uploads fail with "Error al subir la foto", ensure `UPLOADS_DIR="./uploads"` is set in `.env.development.local` to override Vercel environment detection that can interfere with local file storage.
+
 ### Key stats
 Key stats for the whole /vanish secion (ksv) are averages for the last 30 days: average cleaning session duration (defined as total dime / number of cleaning sessions), average time per room, average success rate (which is 100% - % of failed operations).
 
