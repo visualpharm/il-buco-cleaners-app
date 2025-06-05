@@ -35,6 +35,74 @@ Key stats for a room/space (ksr) are the same as cleaning session except the num
 Vanish home: ksv stats on top. Then, each line contains ksc
 Session: ksc on top. Then, each line contains ksr, then photos uploaded, then a button to mark failure and optionally take a picture.
 
+## UI Implementation Details
+
+### Vanish Analytics UI (`/app/vanish/page.tsx`)
+The vanish page provides comprehensive cleaning analytics with three view levels:
+
+#### Main Sessions List View:
+- **KSV Stats Cards**: 30-day averages (session duration, time per room, success rate)
+- **Sessions Table**: Sortable columns (start time, duration, room count, success rate), photo thumbnails
+- **Gallery Integration**: Click thumbnails to open full-screen gallery with keyboard navigation
+
+#### Session Detail View (`?session=sessionId`):
+- **KSC Stats Cards**: Start time, duration, rooms cleaned, success rate for this session
+- **Room Operations Table**: Each row shows room details, duration, progress, photos, failure button
+- **Failure Management**: Toggle failure state, upload/remove failure photos with camera/X buttons
+
+#### Operation Detail View (`?session=sessionId&operation=operationId`):
+- **KSR Stats Cards**: Room name, duration, steps completed, success rate for this operation
+- **Step Details Table**: Shows each step with title (cropped at colon), timing, duration, status, photos, failure button
+- **Step-Level Failure Tracking**: Mark individual steps as failed
+
+#### Key UI Patterns:
+- **URL-based navigation**: All views are shareable/refreshable via URL parameters
+- **Photo separation**: Cleaner photos vs failure photos (thumbnails show only cleaner photos, gallery shows all)
+- **Photo previews**: 30x30px thumbnails with hover effects, red border for failure photos
+- **Failure button states**: Black/white inversion when failed, gray when processing
+- **Gallery controls**: ESC/Arrow keys/Space, photo counter, navigation buttons
+
+### Cleaner's UI (`/app/page.tsx`)
+The main cleaning interface with room selection and step-by-step workflow:
+
+#### Room Selection View:
+- **Floor-based grouping**: Planta Baja (blue), 1er Piso (orange), 2do Piso (pink), Común (gray)
+- **Room cards**: Icon, name, completion checkmark, disabled state for Penthouse
+- **Session tracking**: Visual indicators for already cleaned rooms
+
+#### Cleaning Workflow View:
+- **URL persistence**: Current room, step, session tracked in URL for refreshability
+- **Progress bar**: Visual step completion indicator
+- **Step display**: Category badge, formatted title with bullet lists for complex steps
+- **Photo requirements**: Contextual camera prompts with descriptions
+- **AI validation**: Mock validation with 60% failure rate, correction workflow
+- **Navigation**: Back button, step counter, room/floor context
+
+#### Key Features:
+- **Dynamic checklists**: Different steps per room type (habitaciones: 18 steps, parrilla: 1 step, escalera: 3 steps)
+- **Photo validation flow**: Take photo → AI analysis → correction prompts → proceed
+- **Session continuity**: Cross-room sessions with photo requirements selected per session
+- **State restoration**: URL-based state recovery for interrupted sessions
+
+### Step Title Helper Function:
+```typescript
+const getStepTitle = (stepId: number, roomType?: string): string => {
+  const checklist = obtenerChecklist(roomType || "")
+  const step = checklist.find(s => s.id === stepId)
+  if (!step) return `Paso ${stepId}`
+  
+  // Crop title at the colon if it exists
+  const colonIndex = step.texto.indexOf(':')
+  return colonIndex !== -1 ? step.texto.substring(0, colonIndex) : step.texto
+}
+```
+
+### Photo Management:
+- **Upload endpoint**: `/api/upload-image` accepts 'file' form field
+- **Storage paths**: `general/` for failure photos, `sessions/sessionId/` for step photos
+- **URL format**: `/uploads/general/filename.jpg` or `/uploads/sessions/sessionId/filename.jpg`
+- **Separation logic**: `getOperationCleanerPhotos()` vs `getOperationPhotos()` for display vs gallery
+
 
 
 
