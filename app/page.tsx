@@ -133,7 +133,7 @@ const CHECKLIST_HABITACIONES = [
     id: 2,
     categoria: "Revisión para lavar",
     texto:
-      "Revisar si hace falta lavar: Fundas decorativas de almohadas, Funda de futón, Mantas, pie de cama, Cortinas",
+      "Revisar si hace falta lavar: Fundas decorativas de almohadas, Funda de futón, Mantas, Pie de cama, Cortinas",
   },
   {
     id: 3,
