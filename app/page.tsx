@@ -255,54 +255,24 @@ const validarFotoConIA = async (
   // Simulación de delay de IA
   await new Promise((resolve) => setTimeout(resolve, 2000))
 
-  // Simulación de respuestas de IA más específicas con análisis
-  const respuestasValidas = [
-    {
-      esValida: true,
-      analisis: {
-        esperaba: validacion,
-        encontro: "Todos los elementos están presentes y en orden correcto",
-      },
-    },
-  ]
-
-  const respuestasInvalidas = [
-    {
-      esValida: false,
-      analisis: {
-        esperaba: validacion,
-        encontro: "Faltan algunos cubiertos en la imagen",
-      },
-    },
-    {
-      esValida: false,
-      analisis: {
-        esperaba: validacion,
-        encontro: "La cama no está completamente hecha, falta estirar la frazada",
-      },
-    },
-    {
-      esValida: false,
-      analisis: {
-        esperaba: validacion,
-        encontro: "No se ven las bolsas de repuesto en el fondo del cesto",
-      },
-    },
-    {
-      esValida: false,
-      analisis: {
-        esperaba: validacion,
-        encontro: "Hay restos de café en el interior de la cafetera",
-      },
-    },
-  ]
-
   // 60% de probabilidad de estar correcto
   if (Math.random() > 0.4) {
-    return respuestasValidas[0];
+    return {
+      esValida: true,
+      analisis: {
+        esperaba: "La IA dice que el lugar no está en condiciones, ¿es así?",
+        encontro: "",
+      },
+    };
   } else {
-    const respuestaInvalida = respuestasInvalidas[Math.floor(Math.random() * respuestasInvalidas.length)];
-    return { ...respuestaInvalida, ignorado: false };
+    return {
+      esValida: false,
+      analisis: {
+        esperaba: "La IA dice que el lugar no está en condiciones, ¿es así?",
+        encontro: "",
+      },
+      ignorado: false,
+    };
   }
 }
 
@@ -927,20 +897,16 @@ export default function LimpiezaPage() {
                     <ul className="list-disc list-inside space-y-1 text-base font-normal">
                       {(() => {
                         const afterColon = stepActual.texto.split(":")[1]
-                        console.log("After colon:", afterColon)
 
                         // Remove newlines and extra spaces
                         const normalized = afterColon.replace(/\n/g, " ").replace(/\s+/g, " ")
-                        console.log("After normalizing whitespace:", normalized)
 
                         // Replace \, and \: with placeholders
                         // This allows for escaped commas and colons to be handled correctly in splitting and rendering
                         const replaced = normalized.replace(/\\,/g, "<<<COMMA>>>").replace(/\\:/g, "<<<COLON>>>")
-                        console.log("After replacing \\, and \\: with placeholders:", replaced)
 
                         // Split on commas (not escaped)
                         const splitArr = replaced.split(",")
-                        console.log("After splitting by ,:", splitArr)
 
                         // Replace placeholders with original characters, trim, and filter out empty items
                         const finalArr = splitArr
@@ -951,7 +917,6 @@ export default function LimpiezaPage() {
                               .trim(),
                           )
                           .filter((item) => item.length > 0)
-                        console.log("After replacing placeholders with original characters in each item:", finalArr)
 
                         return finalArr.map((item, index) => (
                           <li key={index} className="text-gray-700">
@@ -1011,13 +976,7 @@ export default function LimpiezaPage() {
                     )}
                     <div className="flex-1">
                       <div className={`text-sm ${validacionActual.esValida ? "text-green-800" : "text-red-800"}`}>
-                        <div className="font-medium mb-2">Análisis de IA:</div>
-                        <div className="mb-1">
-                          <strong>Esperaba ver:</strong> {validacionActual.analisis.esperaba}
-                        </div>
-                        <div>
-                          <strong>Encontré:</strong> {validacionActual.analisis.encontro}
-                        </div>
+                        <div className="font-medium">{validacionActual.analisis.esperaba}</div>
                       </div>
                     </div>
                   </div>
@@ -1031,13 +990,7 @@ export default function LimpiezaPage() {
                       <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
                       <div className="flex-1">
                         <div className="text-sm text-red-800">
-                          <div className="font-medium mb-2">Análisis de IA:</div>
-                          <div className="mb-1">
-                            <strong>Esperaba ver:</strong> {validacionActual?.analisis.esperaba}
-                          </div>
-                          <div className="mb-3">
-                            <strong>Encontré:</strong> {validacionActual?.analisis.encontro}
-                          </div>
+                          <div className="font-medium mb-3">{validacionActual?.analisis.esperaba}</div>
                         </div>
                       </div>
                     </div>

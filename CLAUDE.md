@@ -13,6 +13,21 @@ UI is in Spanish, but the collection names, document fields, variables are in En
 Data format is: Hoy, Ayer, Ene 12, Nov 12, 2024
 Time format: 9:30, 12:50.
 
+Cleaning session (cs) is all operations performed during a single day, if there are no breaks by 1 hour or more. If there are, these are 2 separate sessions in one day.
+
+### Key stats
+Key stats for the whole /vanish secion (ksv) are averages for the last 30 days: average cleaning session duration (defined as total dime / number of cleaning sessions), average time per room, average success rate (which is 100% - % of failed operations).
+
+Key stats for a cleaning session (ksc) are: start time, duration, number of rooms/spaces cleaned, % of success (which is 100% - % of failed operations)
+
+Key stats for a room/space (ksr) are the same as cleaning session except the number of spaces cleaned is replaced by the number of operations completed (either all or % of non-skipped and non-abandoned operations)
+
+### Vanish tables
+Vanish home: ksv stats on top. Then, each line contains ksc
+Session: ksc on top. Then, each line contains ksr, then photos uploaded, then a button to mark failure and optionally take a picture.
+
+
+
 
 ## Development Commands
 

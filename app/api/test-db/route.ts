@@ -3,10 +3,10 @@ import { connectToDatabase } from '@/lib/mongodb';
 
 export async function GET() {
   try {
-    const db = await connectToDatabase();
+    const database = await connectToDatabase();
     
     // Test the database connection by listing collections
-    const collections = await db.listCollections().toArray();
+    const collections = await database.db.listCollections().toArray();
     
     return NextResponse.json({
       success: true,

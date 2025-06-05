@@ -11,6 +11,7 @@ services:
       - UPLOADS_DIR=/app/uploads
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=5000
     volumes:
       - ./uploads:/app/uploads
       - .:/app
