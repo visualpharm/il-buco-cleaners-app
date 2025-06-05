@@ -2,15 +2,55 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-const UPLOADS_DIR = process.env.UPLOADS_DIR || './uploads';
-const BASE_URL = process.env.NGINX_BASE_URL || 'http://localhost:8080';
+// Determine uploads directory based on environment
+const getUploadsDir = () => {
+  if (process.env.UPLOADS_DIR) {
+    return process.env.UPLOADS_DIR;
+  }
+  
+  // Vercel and other serverless environments
+  if (process.env.VERCEL || process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return '/tmp/uploads';
+  }
+  
+  // Default for traditional deployments
+  return './uploads';
+};
+
+const UPLOADS_DIR = getUploadsDir();
+
+// Determine base URL for serving files
+const getBaseUrl = () => {
+  if (process.env.NGINX_BASE_URL) {
+    return process.env.NGINX_BASE_URL;
+  }
+  
+  // For Vercel and serverless, files in /tmp aren't web-accessible
+  // You'd need to implement a file serving API route
+  if (process.env.VERCEL || process.env.NETLIFY) {
+    return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+  }
+  
+  // Default for traditional deployments with nginx
+  return 'http://localhost:8080';
+};
+
+const BASE_URL = getBaseUrl();
 
 // Ensure uploads directory exists
 export async function ensureUploadsDir(): Promise<void> {
   try {
     await fs.access(UPLOADS_DIR);
-  } catch {
-    await fs.mkdir(UPLOADS_DIR, { recursive: true });
+    console.log(`✓ Uploads directory exists: ${UPLOADS_DIR}`);
+  } catch (error) {
+    console.log(`📁 Creating uploads directory: ${UPLOADS_DIR}`);
+    try {
+      await fs.mkdir(UPLOADS_DIR, { recursive: true });
+      console.log(`✅ Created uploads directory: ${UPLOADS_DIR}`);
+    } catch (createError) {
+      console.error(`❌ Failed to create uploads directory: ${UPLOADS_DIR}`, createError);
+      throw new Error(`Cannot create uploads directory: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+    }
   }
 }
 
@@ -32,7 +72,16 @@ export async function saveImage(
   const filePath = path.join(fullDir, filename);
   await fs.writeFile(filePath, buffer);
 
-  const url = `${BASE_URL}/uploads/${subDir}/${filename}`;
+  // Generate URL based on environment
+  let url: string;
+  if (process.env.VERCEL || process.env.NETLIFY) {
+    // Use API route for serving files in serverless environments
+    url = `${BASE_URL}/api/files/${subDir}/${filename}`;
+  } else {
+    // Use nginx for traditional deployments
+    url = `${BASE_URL}/uploads/${subDir}/${filename}`;
+  }
+  
   return { filename, url };
 }
 
@@ -68,5 +117,13 @@ export async function getImagePath(filename: string, sessionId?: string): Promis
 
 export function getImageUrl(filename: string, sessionId?: string): string {
   const subDir = sessionId ? `sessions/${sessionId}` : 'general';
-  return `${BASE_URL}/uploads/${subDir}/${filename}`;
+  
+  // Generate URL based on environment
+  if (process.env.VERCEL || process.env.NETLIFY) {
+    // Use API route for serving files in serverless environments
+    return `${BASE_URL}/api/files/${subDir}/${filename}`;
+  } else {
+    // Use nginx for traditional deployments
+    return `${BASE_URL}/uploads/${subDir}/${filename}`;
+  }
 }

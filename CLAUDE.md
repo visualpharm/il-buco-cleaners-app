@@ -39,11 +39,17 @@ npm run migrate:apply
 ### Build and Deployment
 ```bash
 npm run build        # Builds app (production ready)
-npm run start        # Production server (runs migration at startup)
+npm run setup-dirs   # Create required directories
+npm run start        # Production server (runs setup + migration at startup)
 npm run lint         # ESLint check
 
 # Production deployment
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+
+# Serverless deployment (Vercel, Netlify)
+# - Uses /tmp/uploads for file storage
+# - Serves files via /api/files/[...path] route
+# - Environment variables: VERCEL=1 auto-detected
 ```
 
 ## Architecture Overview
@@ -107,10 +113,22 @@ interface SesionLimpieza {
 ```
 
 ### File Upload & Storage
-- **Local filesystem storage** in `/uploads` directory
-- **Nginx serving** static files via reverse proxy
-- **Session-based organization** with metadata tracking
+The application uses **environment-aware file storage**:
+
+#### Traditional Deployments (Docker):
+- **Local filesystem storage** in `./uploads` directory
+- **Nginx serving** static files via reverse proxy at `/uploads/*`
+- **Persistent storage** with volume mounting
+
+#### Serverless Deployments (Vercel, Netlify):
+- **Temporary storage** in `/tmp/uploads` directory
+- **API route serving** files via `/api/files/[...path]`
+- **Automatic environment detection** via VERCEL/NETLIFY env vars
+
+#### Common Features:
+- **Session-based organization** (`general/` and `sessions/sessionId/`)
 - **Photo validation integration** with cleaning steps
+- **Automatic directory creation** during startup
 
 ### Analytics System
 - **Click tracking** via global `ClickTracker` component

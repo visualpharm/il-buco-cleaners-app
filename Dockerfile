@@ -20,8 +20,8 @@ RUN pnpm install --prefer-offline --no-frozen-lockfile
 # Copy source code
 COPY . .
 
-# Create uploads directory
-RUN mkdir -p uploads
+# Create uploads directory using setup script
+RUN npm run setup-dirs
 
 # Build the application
 RUN pnpm run build
