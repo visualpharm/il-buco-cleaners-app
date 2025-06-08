@@ -1131,10 +1131,20 @@ export default function LimpiezaPage() {
 
               {!tipoFotoRequerida && !validandoFoto && !esperandoCorreccion && (
                 <div className="mt-auto">
-                  <Button onClick={() => completarPaso()} className="w-full flex items-center justify-center gap-2">
-                    <Check className="w-4 h-4" />
-                    Marcar como completado
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={() => completarPaso()} className="flex-1 flex items-center justify-center gap-2">
+                      <Check className="w-4 h-4" />
+                      Completar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => completarPaso()} 
+                      className="px-3 text-gray-600 border-gray-300 hover:bg-gray-50"
+                    >
+                      Pasar
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

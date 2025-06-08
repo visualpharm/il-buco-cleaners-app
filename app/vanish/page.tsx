@@ -1175,6 +1175,178 @@ function VanishPageContent() {
           </div>
         )}
 
+        {/* Failure Statistics Table */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Estadísticas de Fallas (Últimos 30 días)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const thirtyDaysAgo = new Date()
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+              
+              // Filter operations from last 30 days
+              const recentOperations = limpiezas.filter(operation => 
+                new Date(operation.horaInicio) >= thirtyDaysAgo
+              )
+              
+              // Calculate failure stats by operation type and room
+              const operationFailures = new Map<string, { count: number, photos: string[] }>()
+              const roomFailures = new Map<string, { count: number, photos: string[] }>()
+              
+              recentOperations.forEach(operation => {
+                const hasFailed = operation.fallado || operation.pasos.some(paso => paso.fallado)
+                
+                if (hasFailed) {
+                  const operationType = operation.tipo || 'habitacion'
+                  const roomName = operation.habitacion
+                  
+                  // Collect failure photos from operation and steps
+                  const failurePhotos: string[] = []
+                  if (operation.fotoFalla) failurePhotos.push(operation.fotoFalla)
+                  operation.pasos.forEach(paso => {
+                    if (paso.fallado && paso.fotoFalla) failurePhotos.push(paso.fotoFalla)
+                  })
+                  
+                  // Update operation type failures
+                  if (!operationFailures.has(operationType)) {
+                    operationFailures.set(operationType, { count: 0, photos: [] })
+                  }
+                  const opData = operationFailures.get(operationType)!
+                  opData.count++
+                  opData.photos.push(...failurePhotos)
+                  
+                  // Update room failures
+                  if (!roomFailures.has(roomName)) {
+                    roomFailures.set(roomName, { count: 0, photos: [] })
+                  }
+                  const roomData = roomFailures.get(roomName)!
+                  roomData.count++
+                  roomData.photos.push(...failurePhotos)
+                }
+              })
+              
+              // Sort by failure count (descending)
+              const sortedOperations = Array.from(operationFailures.entries())
+                .sort((a, b) => b[1].count - a[1].count)
+              const sortedRooms = Array.from(roomFailures.entries())
+                .sort((a, b) => b[1].count - a[1].count)
+              
+              if (sortedOperations.length === 0 && sortedRooms.length === 0) {
+                return (
+                  <div className="text-center py-8 text-gray-500">
+                    No se registraron fallas en los últimos 30 días
+                  </div>
+                )
+              }
+              
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Failing Operations */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 text-gray-700">Operaciones con Más Fallas</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b bg-gray-50">
+                            <th className="text-left p-3 font-medium text-gray-700">Tipo</th>
+                            <th className="text-left p-3 font-medium text-gray-700">Fallas</th>
+                            <th className="text-left p-3 font-medium text-gray-700">Fotos</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedOperations.map(([operationType, data]) => (
+                            <tr key={operationType} className="border-b hover:bg-gray-50">
+                              <td className="p-3 font-medium capitalize">{operationType}</td>
+                              <td className="p-3">
+                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm font-medium">
+                                  {data.count}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex gap-1">
+                                  {data.photos.slice(-3).map((photo, index) => (
+                                    <img
+                                      key={index}
+                                      src={getPhotoUrl(photo)}
+                                      alt={`Falla ${index + 1}`}
+                                      className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-red-200"
+                                      onClick={() => openGallery(data.photos, data.photos.indexOf(photo))}
+                                    />
+                                  ))}
+                                  {data.photos.length > 3 && (
+                                    <div className="w-8 h-8 bg-red-100 rounded flex items-center justify-center text-xs text-red-600 cursor-pointer hover:bg-red-200"
+                                         onClick={() => openGallery(data.photos, 3)}>
+                                      +{data.photos.length - 3}
+                                    </div>
+                                  )}
+                                  {data.photos.length === 0 && (
+                                    <span className="text-gray-400 text-sm">Sin fotos</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  
+                  {/* Failing Rooms */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 text-gray-700">Habitaciones con Más Fallas</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b bg-gray-50">
+                            <th className="text-left p-3 font-medium text-gray-700">Habitación</th>
+                            <th className="text-left p-3 font-medium text-gray-700">Fallas</th>
+                            <th className="text-left p-3 font-medium text-gray-700">Fotos</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedRooms.map(([roomName, data]) => (
+                            <tr key={roomName} className="border-b hover:bg-gray-50">
+                              <td className="p-3 font-medium">{roomName}</td>
+                              <td className="p-3">
+                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm font-medium">
+                                  {data.count}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex gap-1">
+                                  {data.photos.slice(-3).map((photo, index) => (
+                                    <img
+                                      key={index}
+                                      src={getPhotoUrl(photo)}
+                                      alt={`Falla ${index + 1}`}
+                                      className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-red-200"
+                                      onClick={() => openGallery(data.photos, data.photos.indexOf(photo))}
+                                    />
+                                  ))}
+                                  {data.photos.length > 3 && (
+                                    <div className="w-8 h-8 bg-red-100 rounded flex items-center justify-center text-xs text-red-600 cursor-pointer hover:bg-red-200"
+                                         onClick={() => openGallery(data.photos, 3)}>
+                                      +{data.photos.length - 3}
+                                    </div>
+                                  )}
+                                  {data.photos.length === 0 && (
+                                    <span className="text-gray-400 text-sm">Sin fotos</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+          </CardContent>
+        </Card>
+
         {/* Debug info */}
         {process.env.NODE_ENV === 'development' && (
           <div className="mb-4 p-2 bg-gray-100 rounded text-sm">

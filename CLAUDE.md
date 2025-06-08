@@ -267,6 +267,30 @@ The project is configured for **immediate code reflection** during Docker develo
 - **Automatic retry logic** in migration scripts
 - **Development vs production** error detail levels
 
+
+
+## Add automated test for checklist button with DB verification
+
+Please add an automated integration test for the checklist button feature with the following requirements:
+
+- Simulate a user clicking the checklist button in the UI.
+- After the click, verify the change is correctly stored in the MongoDB database.
+- Use the existing MongoDB connection from `lib/mongodb.ts`.
+- The test should:
+  - Trigger the checklist item toggle or update operation.
+  - Query the relevant MongoDB collection to confirm the updated checklist state.
+  - Assert that the database reflects the UI action accurately.
+- The test should run automatically as part of the build/test pipeline.
+- Write the test using the current testing framework (e.g., Jest, Testing Library).
+- Include any necessary setup and teardown logic for database state isolation.
+- Provide clear logs or error messages if the test fails.
+
+Please create the test file in the appropriate `tests` or `__tests__` folder and ensure it integrates with existing CI/test runs.
+
+---
+
+If you want, I can draft a full example test code for this based on your current stack and collections. Let me know.
+
 ### Testing Database Operations
 ```bash
 # Connect to MongoDB container

@@ -1,14 +1,30 @@
 import { NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/database';
 
+// Enable debug logging
+const debug = process.env.NODE_ENV !== 'production';
+const log = (...args: any[]) => debug && console.log('[checklist-progress]', ...args);
+const error = (...args: any[]) => console.error('[checklist-progress]', ...args);
+
 export async function POST(request: Request) {
+  log('POST request received');
   try {
     const data = await request.json();
+    log('Request data:', JSON.stringify(data, null, 2));
     
     // Validate required fields
-    if (!data.id || !data.habitacion || !data.tipo || !data.horaInicio || !data.pasos) {
+    const missingFields = [];
+    if (!data.id) missingFields.push('id');
+    if (!data.habitacion) missingFields.push('habitacion');
+    if (!data.tipo) missingFields.push('tipo');
+    if (!data.horaInicio) missingFields.push('horaInicio');
+    if (!data.pasos) missingFields.push('pasos');
+    
+    if (missingFields.length > 0) {
+      const errorMsg = `Missing required fields: ${missingFields.join(', ')}`;
+      error('Validation error:', errorMsg);
       return NextResponse.json(
-        { error: 'Missing required fields: id, habitacion, tipo, horaInicio, pasos' },
+        { error: errorMsg },
         { status: 400 }
       );
     }
@@ -46,13 +62,27 @@ export async function POST(request: Request) {
       failurePhoto: data.fotoFalla
     };
 
+    log('Saving checklist progress to database...');
     const result = await DatabaseService.saveChecklistProgress(progressData);
+    log('Successfully saved checklist progress:', JSON.stringify(result, null, 2));
     
     return NextResponse.json(result);
-  } catch (error) {
-    console.error('Error saving checklist progress:', error);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    
+    error('Error saving checklist progress:', {
+      message: errorMessage,
+      stack: errorStack,
+      timestamp: new Date().toISOString()
+    });
+    
     return NextResponse.json(
-      { error: 'Failed to save checklist progress' },
+      { 
+        error: 'Internal Server Error',
+        message: errorMessage,
+        ...(process.env.NODE_ENV === 'development' ? { stack: errorStack } : {})
+      },
       { status: 500 }
     );
   }
