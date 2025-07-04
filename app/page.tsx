@@ -78,9 +78,8 @@ const HABITACIONES = [
     nombre: "Penthouse",
     piso: "2do Piso",
     icono: BedIcon,
-    color: "bg-gray-200",
+    color: "bg-pink-100",
     tipo: "habitacion",
-    disabled: true,
   },
   {
     nombre: "Parrilla",
@@ -890,17 +889,6 @@ export default function LimpiezaPage() {
                             <div className="text-sm font-medium leading-tight">{habitacion.nombre}</div>
                           </div>
 
-                          {/* Add central inclined labels for Penthouse */}
-                          {habitacion.nombre === "Penthouse" && (
-                            <>
-                              <div className="absolute top-2 right-4 bg-red-500 text-white text-xs px-3 py-1 transform rotate-12 shadow-sm">
-                                No limpiamos
-                              </div>
-                              <div className="absolute bottom-2 left-4 bg-orange-500 text-white text-xs px-3 py-1 transform -rotate-12 shadow-sm">
-                                Solo sacar hongos del dormitorio
-                              </div>
-                            </>
-                          )}
                         </Button>
                       )
                     })}
