@@ -24,7 +24,7 @@ interface StepData {
 }
 
 interface CleaningDocument extends WithId<Document> {
-  id: number;
+  id: string;
   room: string;
   type?: string;
   startTime: Date;
