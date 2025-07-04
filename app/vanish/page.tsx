@@ -136,6 +136,7 @@ function VanishPageContent() {
   const [error, setError] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>('startTime')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [timePeriod, setTimePeriod] = useState<number>(30) // Default 30 days
   
   // Session detail view state
   const selectedSessionId = searchParams.get('session')
@@ -209,9 +210,6 @@ function VanishPageContent() {
         const processedSessions = processCleaningSessions(formattedData)
         setSessions(processedSessions)
         
-        const ksvData = calculateKSVStats(processedSessions)
-        setKsvStats(ksvData)
-        
       } catch (err) {
         console.error('Error fetching limpiezas:', err)
         setError('Error al cargar los datos de limpieza: ' + (err instanceof Error ? err.message : 'Error desconocido'))
@@ -222,6 +220,14 @@ function VanishPageContent() {
 
     fetchLimpiezas()
   }, [])
+  
+  // Recalculate KSV stats when time period or sessions change
+  useEffect(() => {
+    if (sessions.length > 0) {
+      const ksvData = calculateKSVStats(sessions, timePeriod)
+      setKsvStats(ksvData)
+    }
+  }, [sessions, timePeriod])
 
   // Process cleaning operations into sessions (1+ hour break = new session)
   const processCleaningSessions = (operations: LimpiezaCompleta[]): CleaningSession[] => {
@@ -288,13 +294,13 @@ function VanishPageContent() {
     }
   }
 
-  // Calculate KSV (Key Stats for Vanish) - 30-day averages
-  const calculateKSVStats = (sessions: CleaningSession[]): KSVStats => {
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  // Calculate KSV (Key Stats for Vanish) - averages for selected time period
+  const calculateKSVStats = (sessions: CleaningSession[], days: number): KSVStats => {
+    const periodAgo = new Date()
+    periodAgo.setDate(periodAgo.getDate() - days)
     
     const recentSessions = sessions.filter(session => 
-      new Date(session.startTime) >= thirtyDaysAgo
+      new Date(session.startTime) >= periodAgo
     )
     
     if (recentSessions.length === 0) {
@@ -546,7 +552,7 @@ function VanishPageContent() {
         setLimpiezas(formattedData)
         const processedSessions = processCleaningSessions(formattedData)
         setSessions(processedSessions)
-        const ksvData = calculateKSVStats(processedSessions)
+        const ksvData = calculateKSVStats(processedSessions, timePeriod)
         setKsvStats(ksvData)
       }
     } catch (error) {
@@ -620,7 +626,7 @@ function VanishPageContent() {
         setLimpiezas(formattedData)
         const processedSessions = processCleaningSessions(formattedData)
         setSessions(processedSessions)
-        const ksvData = calculateKSVStats(processedSessions)
+        const ksvData = calculateKSVStats(processedSessions, timePeriod)
         setKsvStats(ksvData)
       }
     } catch (error) {
@@ -1156,9 +1162,29 @@ function VanishPageContent() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Estadísticas de Limpieza</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Estadísticas de Limpieza</h1>
+          
+          {/* Time Period Selector */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="timePeriod" className="text-sm font-medium text-gray-700">
+              Período:
+            </label>
+            <select
+              id="timePeriod"
+              value={timePeriod}
+              onChange={(e) => setTimePeriod(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={30}>Últimos 30 días</option>
+              <option value={90}>Últimos 90 días</option>
+              <option value={180}>Últimos 6 meses</option>
+              <option value={365}>Último año</option>
+            </select>
+          </div>
+        </div>
         
-        {/* KSV Stats - 30-day averages */}
+        {/* KSV Stats - selected period averages */}
         {ksvStats && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <Card>
@@ -1169,7 +1195,12 @@ function VanishPageContent() {
                 <div className="text-2xl font-bold text-blue-600">
                   {formatDuration(ksvStats.avgSessionDuration)}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Últimos 30 días</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {timePeriod === 365 ? 'Último año' : 
+                   timePeriod === 180 ? 'Últimos 6 meses' :
+                   timePeriod === 90 ? 'Últimos 90 días' :
+                   `Últimos ${timePeriod} días`}
+                </p>
               </CardContent>
             </Card>
             
@@ -1181,7 +1212,12 @@ function VanishPageContent() {
                 <div className="text-2xl font-bold text-green-600">
                   {formatDuration(ksvStats.avgTimePerRoom)}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Últimos 30 días</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {timePeriod === 365 ? 'Último año' : 
+                   timePeriod === 180 ? 'Últimos 6 meses' :
+                   timePeriod === 90 ? 'Últimos 90 días' :
+                   `Últimos ${timePeriod} días`}
+                </p>
               </CardContent>
             </Card>
             
@@ -1193,7 +1229,12 @@ function VanishPageContent() {
                 <div className="text-2xl font-bold text-purple-600">
                   {ksvStats.avgSuccessRate.toFixed(1)}%
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Últimos 30 días</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {timePeriod === 365 ? 'Último año' : 
+                   timePeriod === 180 ? 'Últimos 6 meses' :
+                   timePeriod === 90 ? 'Últimos 90 días' :
+                   `Últimos ${timePeriod} días`}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -1202,16 +1243,19 @@ function VanishPageContent() {
         {/* Failure Statistics Table */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Estadísticas de Fallas (Últimos 30 días)</CardTitle>
+            <CardTitle>Estadísticas de Fallas ({timePeriod === 365 ? 'Último año' : 
+                   timePeriod === 180 ? 'Últimos 6 meses' :
+                   timePeriod === 90 ? 'Últimos 90 días' :
+                   `Últimos ${timePeriod} días`})</CardTitle>
           </CardHeader>
           <CardContent>
             {(() => {
-              const thirtyDaysAgo = new Date()
-              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+              const periodAgo = new Date()
+              periodAgo.setDate(periodAgo.getDate() - timePeriod)
               
-              // Filter operations from last 30 days
+              // Filter operations from selected period
               const recentOperations = limpiezas.filter(operation => 
-                new Date(operation.horaInicio) >= thirtyDaysAgo
+                new Date(operation.horaInicio) >= periodAgo
               )
               
               // Calculate failure stats by operation type and room
@@ -1259,7 +1303,10 @@ function VanishPageContent() {
               if (sortedOperations.length === 0 && sortedRooms.length === 0) {
                 return (
                   <div className="text-center py-8 text-gray-500">
-                    No se registraron fallas en los últimos 30 días
+                    No se registraron fallas en {timePeriod === 365 ? 'el último año' : 
+                     timePeriod === 180 ? 'los últimos 6 meses' :
+                     timePeriod === 90 ? 'los últimos 90 días' :
+                     `los últimos ${timePeriod} días`}
                   </div>
                 )
               }
