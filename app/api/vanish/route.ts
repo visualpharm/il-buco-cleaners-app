@@ -71,12 +71,12 @@ export async function PUT(request: Request) {
 
     const updateData: any = {};
 
-    // Handle operation-level updates
+    // Handle operation-level updates - map Spanish to English DB fields
     if (typeof fallado === 'boolean') {
-      updateData.fallado = fallado;
+      updateData.failed = fallado;
     }
     if (fotoFalla !== undefined) {
-      updateData.fotoFalla = fotoFalla;
+      updateData.failurePhoto = fotoFalla;
     }
 
     // Handle step-level updates

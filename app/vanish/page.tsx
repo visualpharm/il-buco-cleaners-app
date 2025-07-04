@@ -338,9 +338,18 @@ function VanishPageContent() {
     const periodAgo = new Date()
     periodAgo.setDate(periodAgo.getDate() - days)
     
-    const recentSessions = sessions.filter(session => 
-      new Date(session.startTime) >= periodAgo
-    )
+    // Filter sessions from the selected period AND exclude Ivan and Andres (testing users)
+    const recentSessions = sessions.filter(session => {
+      const isInPeriod = new Date(session.startTime) >= periodAgo
+      
+      // Check if any operation in this session is from Ivan or Andres
+      const isTestUser = session.operations.some(op => 
+        op.limpiadorId === 'ivan' || op.limpiadorId === 'andres'
+      )
+      
+      // Include session only if it's in the period AND not from test users
+      return isInPeriod && !isTestUser
+    })
     
     if (recentSessions.length === 0) {
       return { avgSessionDuration: 0, avgTimePerRoom: 0, avgSuccessRate: 100 }
@@ -424,8 +433,10 @@ function VanishPageContent() {
     // Calculate completion percentage
     const completionRate = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
     
-    // Calculate success rate (100% - % of failed operations)
-    const successRate = totalSteps > 0 ? ((totalSteps - failedSteps) / totalSteps) * 100 : 100
+    // Calculate success rate - if operation is failed, success rate is 0
+    // Otherwise, calculate based on failed steps
+    const successRate = operation.fallado ? 0 : 
+      (totalSteps > 0 ? ((totalSteps - failedSteps) / totalSteps) * 100 : 100)
     
     // Calculate duration
     const startTime = new Date(operation.horaInicio)
@@ -447,19 +458,57 @@ function VanishPageContent() {
   // Toggle failure state
   const toggleFailureState = async (operation: LimpiezaCompleta) => {
     try {
-      setMarkingFailure(operation.id)
-      
       const currentlyFailed = operation.fallado
       const newFailedState = !currentlyFailed
       
-      let fotoFalla = operation.fotoFalla // Keep existing photo
-      
-      // If clearing failure, remove photo
-      if (!newFailedState) {
-        fotoFalla = undefined
+      // If marking as failed, immediately open file upload dialog
+      if (newFailedState) {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'image/*'
+        input.capture = 'environment'
+        
+        input.onchange = async (e) => {
+          const file = (e.target as HTMLInputElement).files?.[0]
+          if (file) {
+            // Upload photo and mark as failed
+            try {
+              setMarkingFailure(operation.id)
+
+              const formData = new FormData()
+              formData.append('file', file)
+
+              const uploadResponse = await fetch('/api/upload-image', {
+                method: 'POST',
+                body: formData
+              })
+
+              if (uploadResponse.ok) {
+                const uploadData = await uploadResponse.json()
+                const photoUrl: string = uploadData.url
+                await markFailure(operation.id, true, photoUrl)
+              } else {
+                const errorData = await uploadResponse.json().catch(() => ({ error: 'Error desconocido' }))
+                throw new Error(errorData.error || 'Error al subir la foto')
+              }
+            } catch (error) {
+              console.error('Error uploading photo:', error)
+              alert('Error al subir la foto: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+              setMarkingFailure(null)
+            }
+          } else {
+            // If no file selected, still mark as failed but without photo
+            setMarkingFailure(operation.id)
+            await markFailure(operation.id, true, undefined)
+          }
+        }
+        
+        input.click()
+      } else {
+        // If unmarking as failed, just update the state
+        setMarkingFailure(operation.id)
+        await markFailure(operation.id, false, undefined)
       }
-      
-      await markFailure(operation.id, newFailedState, fotoFalla || undefined)
     } catch (error) {
       console.error('Error toggling failure state:', error)
       setMarkingFailure(null)
@@ -697,9 +746,9 @@ function VanishPageContent() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          operationId,
-          failed,
-          photoUrl
+          operacionId: operationId,  // API expects Spanish field names
+          fallado: failed,
+          fotoFalla: photoUrl
         })
       })
 
@@ -751,6 +800,19 @@ function VanishPageContent() {
         setSessions(processedSessions)
         const ksvData = calculateKSVStats(processedSessions, timePeriod)
         setKsvStats(ksvData)
+        
+        // Debug: Log session success rates
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[DEV] Updated sessions with success rates:', processedSessions.map(s => ({
+            sessionId: s.sessionId,
+            successRate: s.successRate,
+            operations: s.operations.map(op => ({
+              room: op.habitacion,
+              failed: op.fallado,
+              complete: op.completa
+            }))
+          })))
+        }
       }
     } catch (error) {
       console.error('Error marking failure:', error)
@@ -1450,63 +1512,8 @@ function VanishPageContent() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Estadísticas de Limpieza</h1>
-          
-          {/* Filters */}
-          <div className="flex items-center gap-4">
-            {/* Cleaner Filter */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="cleanerFilter" className="text-sm font-medium text-gray-700">
-                Limpiador:
-              </label>
-              <select
-                id="cleanerFilter"
-                value={selectedCleanerId || ''}
-                onChange={(e) => {
-                  const value = e.target.value || null
-                  setSelectedCleanerId(value)
-                  // Save preference
-                  if (value) {
-                    localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER, value)
-                  } else {
-                    localStorage.removeItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER)
-                  }
-                }}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Todos</option>
-                {CLEANER_PROFILES.map(cleaner => (
-                  <option key={cleaner.id} value={cleaner.id}>
-                    {cleaner.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Time Period Selector */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="timePeriod" className="text-sm font-medium text-gray-700">
-                Período:
-              </label>
-              <select
-                id="timePeriod"
-                value={timePeriod}
-                onChange={(e) => {
-                  const value = Number(e.target.value)
-                  setTimePeriod(value)
-                  // Save preference
-                  localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_PERIOD, value.toString())
-                }}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={30}>Últimos 30 días</option>
-                <option value={90}>Últimos 90 días</option>
-                <option value={180}>Últimos 6 meses</option>
-                <option value={365}>Último año</option>
-              </select>
-            </div>
-          </div>
         </div>
         
         {/* KSV Stats - selected period averages */}
@@ -1568,10 +1575,64 @@ function VanishPageContent() {
         {/* Failure Statistics Table */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Estadísticas de Fallas ({timePeriod === 365 ? 'Último año' : 
-                   timePeriod === 180 ? 'Últimos 6 meses' :
-                   timePeriod === 90 ? 'Últimos 90 días' :
-                   `Últimos ${timePeriod} días`})</CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle>Estadísticas de Fallas</CardTitle>
+              
+              {/* Filters */}
+              <div className="flex items-center gap-4">
+                {/* Cleaner Filter */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="cleanerFilter" className="text-sm font-medium text-gray-700">
+                    Limpiador:
+                  </label>
+                  <select
+                    id="cleanerFilter"
+                    value={selectedCleanerId || ''}
+                    onChange={(e) => {
+                      const value = e.target.value || null
+                      setSelectedCleanerId(value)
+                      // Save preference
+                      if (value) {
+                        localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER, value)
+                      } else {
+                        localStorage.removeItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER)
+                      }
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Todos</option>
+                    {CLEANER_PROFILES.map(cleaner => (
+                      <option key={cleaner.id} value={cleaner.id}>
+                        {cleaner.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Time Period Selector */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="timePeriod" className="text-sm font-medium text-gray-700">
+                    Período:
+                  </label>
+                  <select
+                    id="timePeriod"
+                    value={timePeriod}
+                    onChange={(e) => {
+                      const value = Number(e.target.value)
+                      setTimePeriod(value)
+                      // Save preference
+                      localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_PERIOD, value.toString())
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={30}>Últimos 30 días</option>
+                    <option value={90}>Últimos 90 días</option>
+                    <option value={180}>Últimos 6 meses</option>
+                    <option value={365}>Último año</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {(() => {
