@@ -31,8 +31,8 @@ const getBaseUrl = () => {
     return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
   }
   
-  // Default for traditional deployments with nginx
-  return 'http://localhost:8080';
+  // Default for local development without nginx - use relative paths
+  return '';
 };
 
 const BASE_URL = getBaseUrl();
@@ -80,11 +80,12 @@ export async function saveImage(
 
   // Generate URL based on environment
   let url: string;
-  if (process.env.VERCEL || process.env.NETLIFY) {
-    // Use API route for serving files in serverless environments
-    url = `${BASE_URL}/api/files/${subDir}/${filename}`;
+  if (process.env.VERCEL || process.env.NETLIFY || !BASE_URL) {
+    // Use API route for serving files in serverless environments or local dev
+    const prefix = BASE_URL || '';
+    url = `${prefix}/api/files/${subDir}/${filename}`;
   } else {
-    // Use nginx for traditional deployments
+    // Use nginx for traditional deployments with explicit BASE_URL
     url = `${BASE_URL}/uploads/${subDir}/${filename}`;
   }
   
@@ -125,11 +126,12 @@ export function getImageUrl(filename: string, sessionId?: string): string {
   const subDir = sessionId ? `sessions/${sessionId}` : 'general';
   
   // Generate URL based on environment
-  if (process.env.VERCEL || process.env.NETLIFY) {
-    // Use API route for serving files in serverless environments
-    return `${BASE_URL}/api/files/${subDir}/${filename}`;
+  if (process.env.VERCEL || process.env.NETLIFY || !BASE_URL) {
+    // Use API route for serving files in serverless environments or local dev
+    const prefix = BASE_URL || '';
+    return `${prefix}/api/files/${subDir}/${filename}`;
   } else {
-    // Use nginx for traditional deployments
+    // Use nginx for traditional deployments with explicit BASE_URL
     return `${BASE_URL}/uploads/${subDir}/${filename}`;
   }
 }

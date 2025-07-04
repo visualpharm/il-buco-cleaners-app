@@ -304,3 +304,9 @@ db.checklistProgress.findOne()
 ```
 
 This architecture supports a robust cleaning management system with international code standards while maintaining a localized Spanish user experience.
+
+# Multi-user experience. 
+Opening the Cleaners app, we can see different users, pretty much like in the Netflix first screen. The users are Ivan, Andres, Melody, and these users are stored in the file. So, the user chooses his profile and there is no password. 
+
+The dashboard, in the Vanish section, it shows the cleaner tab in all the tables and it shows the filters, so you can filter by certain user, by certain cleaner. The Vanish remembers the last cleaner we filtered for. Basically, it stores the state of the filters of the period and of the cle Create a multi-cleaner experience according to Claude.md. aner we filtered to. When a cleaner sees the list of the rooms, the room only sees the rooms that are completed by this cleaner, but not by other ones. Also, this checkmark that appears at the room when it's done must be much bigger. When a cleaner sees the list of the rooms, the room only sees the rooms that are completed by this cleaner, but not by other ones. Also, this checkmark that appears at the room when it's done must be much bigger and very notable. So, the cleaner is proud of what he's done. 
+

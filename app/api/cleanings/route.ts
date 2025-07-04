@@ -40,8 +40,12 @@ interface CleaningDocument extends WithId<Document> {
 // This route is marked as dynamic to prevent static generation
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const cleanerId = searchParams.get('cleanerId');
+    
     // Connect to the database
     const { db } = await connectToDatabase();
     
@@ -49,9 +53,15 @@ export async function GET() {
       throw new Error('Could not connect to the database');
     }
     
-    // Fetch all cleaning records from the database
+    // Build query
+    const query: any = {};
+    if (cleanerId) {
+      query.cleanerId = cleanerId;
+    }
+    
+    // Fetch cleaning records from the database
     const cleanings = await db.collection<CleaningDocument>('checklistProgress')
-      .find({})
+      .find(query)
       .sort({ startTime: -1 }) // Sort by most recent first
       .toArray();
     
