@@ -29,13 +29,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if session is over 12 hours old
+    const startTime = new Date(data.horaInicio);
+    const now = new Date();
+    const duration = now.getTime() - startTime.getTime();
+    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+    
     // Convert Spanish field names to English and date strings to Date objects
     const progressData = {
       id: data.id,
       room: data.habitacion,
       type: data.tipo,
-      startTime: new Date(data.horaInicio),
-      endTime: data.horaFin ? new Date(data.horaFin) : undefined,
+      startTime: startTime,
+      endTime: data.horaFin ? new Date(data.horaFin) : (duration > TWELVE_HOURS_MS ? now : undefined),
       steps: data.pasos.map((paso: any) => ({
         ...paso,
         startTime: new Date(paso.horaInicio),
@@ -56,8 +62,8 @@ export async function POST(request: Request) {
         failurePhoto: paso.fotoFalla
       })),
       sessionId: data.sesionId,
-      complete: data.completa || false,
-      reason: data.razon,
+      complete: data.completa || false || (duration > TWELVE_HOURS_MS),
+      reason: data.razon || (duration > TWELVE_HOURS_MS ? 'Auto-closed: Session exceeded 12 hours' : undefined),
       failed: data.fallado,
       failurePhoto: data.fotoFalla
     };

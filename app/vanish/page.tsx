@@ -159,6 +159,20 @@ function VanishPageContent() {
     const fetchLimpiezas = async () => {
       try {
         setIsLoading(true)
+        
+        // Auto-close sessions that have been running for over 12 hours
+        try {
+          const autoCloseResponse = await fetch('/api/auto-close-sessions', {
+            method: 'POST'
+          })
+          if (autoCloseResponse.ok) {
+            const autoCloseResult = await autoCloseResponse.json()
+            console.log('Auto-close result:', autoCloseResult)
+          }
+        } catch (autoCloseError) {
+          console.error('Error auto-closing sessions:', autoCloseError)
+        }
+        
         const response = await fetch('/api/cleanings')
         if (!response.ok) {
           throw new Error('Error al cargar las limpiezas')
@@ -1165,22 +1179,53 @@ function VanishPageContent() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Estadísticas de Limpieza</h1>
           
-          {/* Time Period Selector */}
-          <div className="flex items-center gap-2">
-            <label htmlFor="timePeriod" className="text-sm font-medium text-gray-700">
-              Período:
-            </label>
-            <select
-              id="timePeriod"
-              value={timePeriod}
-              onChange={(e) => setTimePeriod(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <div className="flex items-center gap-4">
+            {/* Auto-close sessions button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const response = await fetch('/api/auto-close-sessions', {
+                    method: 'POST'
+                  })
+                  const result = await response.json()
+                  
+                  if (result.success && result.closedSessions.length > 0) {
+                    alert(`Se cerraron ${result.closedSessions.length} sesión(es) que excedían las 12 horas`)
+                    window.location.reload()
+                  } else if (result.success) {
+                    alert('No hay sesiones que excedan las 12 horas')
+                  } else {
+                    alert('Error al cerrar sesiones automáticamente')
+                  }
+                } catch (error) {
+                  console.error('Error:', error)
+                  alert('Error al cerrar sesiones automáticamente')
+                }
+              }}
+              className="text-orange-600 border-orange-600 hover:bg-orange-50"
             >
-              <option value={30}>Últimos 30 días</option>
-              <option value={90}>Últimos 90 días</option>
-              <option value={180}>Últimos 6 meses</option>
-              <option value={365}>Último año</option>
-            </select>
+              Cerrar Sesiones Largas
+            </Button>
+            
+            {/* Time Period Selector */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="timePeriod" className="text-sm font-medium text-gray-700">
+                Período:
+              </label>
+              <select
+                id="timePeriod"
+                value={timePeriod}
+                onChange={(e) => setTimePeriod(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={30}>Últimos 30 días</option>
+                <option value={90}>Últimos 90 días</option>
+                <option value={180}>Últimos 6 meses</option>
+                <option value={365}>Último año</option>
+              </select>
+            </div>
           </div>
         </div>
         
