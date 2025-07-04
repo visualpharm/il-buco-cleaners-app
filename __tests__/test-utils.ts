@@ -35,7 +35,7 @@ export const setupTestDB = async (): Promise<TestDB> => {
     mongoServer = await MongoMemoryServer.create({
       instance: {
         dbName: 'test-db',
-        port: 27017,
+        port: 27037, // Use different port to avoid conflicts
       },
     });
     const uri = mongoServer.getUri();

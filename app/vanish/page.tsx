@@ -422,6 +422,8 @@ function VanishPageContent() {
     } catch (error) {
       console.error('Error removing photo:', error)
       alert('Error al eliminar la foto: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+    }
+  }
 
   // Handle photo upload for failed operations
   const uploadFailurePhoto = async (operationId: string) => {
@@ -481,6 +483,241 @@ function VanishPageContent() {
     }
     // Fallback: relative path (may not work if not proxied)
     return `/uploads/${photo.replace(/^\/uploads\//, '')}`
+  }
+
+  // Mark operation or step as failed
+  const markFailure = async (operationId: string, failed: boolean, photoUrl?: string) => {
+    try {
+      const response = await fetch('/api/vanish', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operationId,
+          failed,
+          photoUrl
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al marcar falla')
+      }
+
+      // Refresh data
+      const fetchResponse = await fetch('/api/cleanings')
+      if (fetchResponse.ok) {
+        const data = await fetchResponse.json()
+        const cleaningData = Array.isArray(data) ? data : (data.data || [])
+        
+        // Convert and update data
+        const formattedData = cleaningData.map((cleaning: any) => ({
+          ...cleaning,
+          habitacion: cleaning.room,
+          tipo: cleaning.type,
+          horaInicio: new Date(cleaning.startTime),
+          horaFin: cleaning.endTime ? new Date(cleaning.endTime) : new Date(),
+          pasos: cleaning.steps?.map((step: any) => ({
+            ...step,
+            horaInicio: step.startTime ? new Date(step.startTime) : null,
+            horaCompletado: step.completedTime ? new Date(step.completedTime) : null,
+            tiempoTranscurrido: step.elapsedTime,
+            foto: step.photo,
+            validacionIA: step.validationAI ? {
+              esValida: step.validationAI.isValid,
+              analisis: {
+                esperaba: step.validationAI.analysis.expected,
+                encontro: step.validationAI.analysis.found
+              }
+            } : undefined,
+            corregido: step.corrected,
+            ignorado: step.ignored,
+            tipoFoto: step.photoType,
+            fallado: step.failed,
+            fotoFalla: step.failurePhoto
+          })) || [],
+          sesionId: cleaning.sessionId,
+          completa: cleaning.complete,
+          razon: cleaning.reason,
+          fallado: cleaning.failed,
+          fotoFalla: cleaning.failurePhoto
+        }))
+        
+        setLimpiezas(formattedData)
+        const processedSessions = processCleaningSessions(formattedData)
+        setSessions(processedSessions)
+        const ksvData = calculateKSVStats(processedSessions)
+        setKsvStats(ksvData)
+      }
+    } catch (error) {
+      console.error('Error marking failure:', error)
+      throw error
+    } finally {
+      setMarkingFailure(null)
+    }
+  }
+
+  // Toggle step failure state
+  const toggleStepFailure = async (operationId: string, stepId: number, failed: boolean) => {
+    try {
+      setMarkingFailure(`step-${stepId}`)
+      
+      const response = await fetch('/api/vanish/step', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operationId,
+          stepId,
+          failed
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al marcar falla del paso')
+      }
+
+      // Refresh data
+      const fetchResponse = await fetch('/api/cleanings')
+      if (fetchResponse.ok) {
+        const data = await fetchResponse.json()
+        const cleaningData = Array.isArray(data) ? data : (data.data || [])
+        
+        // Convert and update data
+        const formattedData = cleaningData.map((cleaning: any) => ({
+          ...cleaning,
+          habitacion: cleaning.room,
+          tipo: cleaning.type,
+          horaInicio: new Date(cleaning.startTime),
+          horaFin: cleaning.endTime ? new Date(cleaning.endTime) : new Date(),
+          pasos: cleaning.steps?.map((step: any) => ({
+            ...step,
+            horaInicio: step.startTime ? new Date(step.startTime) : null,
+            horaCompletado: step.completedTime ? new Date(step.completedTime) : null,
+            tiempoTranscurrido: step.elapsedTime,
+            foto: step.photo,
+            validacionIA: step.validationAI ? {
+              esValida: step.validationAI.isValid,
+              analisis: {
+                esperaba: step.validationAI.analysis.expected,
+                encontro: step.validationAI.analysis.found
+              }
+            } : undefined,
+            corregido: step.corrected,
+            ignorado: step.ignored,
+            tipoFoto: step.photoType,
+            fallado: step.failed,
+            fotoFalla: step.failurePhoto
+          })) || [],
+          sesionId: cleaning.sessionId,
+          completa: cleaning.complete,
+          razon: cleaning.reason,
+          fallado: cleaning.failed,
+          fotoFalla: cleaning.failurePhoto
+        }))
+        
+        setLimpiezas(formattedData)
+        const processedSessions = processCleaningSessions(formattedData)
+        setSessions(processedSessions)
+        const ksvData = calculateKSVStats(processedSessions)
+        setKsvStats(ksvData)
+      }
+    } catch (error) {
+      console.error('Error toggling step failure:', error)
+      alert('Error al marcar falla del paso')
+    } finally {
+      setMarkingFailure(null)
+    }
+  }
+
+  // Navigation helper
+  const navigateToSessionsList = () => {
+    router.push('/vanish')
+  }
+
+  // Gallery functions
+  const openGallery = (photos: string[], startIndex: number = 0) => {
+    setGalleryPhotos(photos)
+    setCurrentPhotoIndex(startIndex)
+    setGalleryOpen(true)
+  }
+
+  const closeGallery = () => {
+    setGalleryOpen(false)
+    setGalleryPhotos([])
+    setCurrentPhotoIndex(0)
+  }
+
+  const nextPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev + 1) % galleryPhotos.length)
+  }
+
+  const prevPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev - 1 + galleryPhotos.length) % galleryPhotos.length)
+  }
+
+  // Keyboard navigation for gallery
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (!galleryOpen) return
+      
+      switch (e.key) {
+        case 'Escape':
+          closeGallery()
+          break
+        case 'ArrowRight':
+        case ' ':
+          e.preventDefault()
+          nextPhoto()
+          break
+        case 'ArrowLeft':
+          prevPhoto()
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [galleryOpen, galleryPhotos.length])
+
+  // Helper functions to get photos
+  const getOperationPhotos = (operation: LimpiezaCompleta): string[] => {
+    const photos: string[] = []
+    
+    // Add step photos
+    operation.pasos.forEach(paso => {
+      if (paso.foto) photos.push(paso.foto)
+      if (paso.fotoFalla) photos.push(paso.fotoFalla)
+    })
+    
+    // Add operation failure photo
+    if (operation.fotoFalla) photos.push(operation.fotoFalla)
+    
+    return photos
+  }
+
+  const getOperationCleanerPhotos = (operation: LimpiezaCompleta): string[] => {
+    // Only return cleaner photos (not failure photos) for thumbnail display
+    return operation.pasos
+      .filter(paso => paso.foto)
+      .map(paso => paso.foto!)
+  }
+
+  const getSessionPhotos = (session: CleaningSession): string[] => {
+    const photos: string[] = []
+    session.operations.forEach(op => {
+      photos.push(...getOperationPhotos(op))
+    })
+    return photos
+  }
+
+  const getSessionCleanerPhotos = (session: CleaningSession): string[] => {
+    const photos: string[] = []
+    session.operations.forEach(op => {
+      photos.push(...getOperationCleanerPhotos(op))
+    })
+    return photos
   }
 
   if (isLoading) {
@@ -1344,25 +1581,6 @@ function VanishPageContent() {
     </div>
   )
 }
-
-// Main VanishPageContent component
-function VanishPageContent() {
-  // --- ALL LOGIC, HOOKS, HELPERS, AND JSX FROM THE TOP LEVEL GO HERE ---
-  // This includes all state, effects, helper functions, and the main return JSX.
-  // There should be no logic or hooks outside this function.
-  //
-  // For brevity, this is a placeholder. In the real implementation, paste everything from line 18 (after imports and Loading) through the last main return statement here.
-  //
-  // Example:
-  // const [state, setState] = useState(...);
-  // useEffect(...);
-  // function helper() {...}
-  // return (<div>...full page JSX...</div>);
-  return null; // Placeholder: replace with the actual JSX from your page.
-}
-
-
-
 
 // Wrapper component that provides Suspense boundary
 export default function VanishPage() {
