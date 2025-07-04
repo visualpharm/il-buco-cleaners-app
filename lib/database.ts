@@ -44,6 +44,7 @@ export interface ChecklistProgress {
   type: string;
   startTime: Date;
   endTime?: Date;
+  cleanerId?: string; // Added cleaner ID
   steps: {
     id: number;
     startTime: Date;

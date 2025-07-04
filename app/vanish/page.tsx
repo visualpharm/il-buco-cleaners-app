@@ -6,6 +6,7 @@ import { formatTimeShort, formatDateDisplay } from "@/lib/dateUtils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown, ArrowUpDown, Camera, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { CLEANER_PROFILES, CLEANER_STORAGE_KEYS, getCleanerById } from "@/lib/cleaners"
 
 // Loading component for Suspense fallback
 function Loading() {
@@ -100,6 +101,7 @@ interface LimpiezaCompleta {
   horaFin: Date
   pasos: StepData[]
   sesionId?: string
+  limpiadorId?: string // Add cleaner ID
   completa?: boolean
   razon?: string
   fallado?: boolean
@@ -137,6 +139,7 @@ function VanishPageContent() {
   const [sortField, setSortField] = useState<SortField>('startTime')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [timePeriod, setTimePeriod] = useState<number>(30) // Default 30 days
+  const [selectedCleanerId, setSelectedCleanerId] = useState<string | null>(null) // Cleaner filter
   
   // Session detail view state
   const selectedSessionId = searchParams.get('session')
@@ -153,6 +156,20 @@ function VanishPageContent() {
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [galleryPhotos, setGalleryPhotos] = useState<string[]>([])
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
+
+  // Restore filter preferences from localStorage
+  useEffect(() => {
+    const savedCleanerId = localStorage.getItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER)
+    const savedPeriod = localStorage.getItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_PERIOD)
+    
+    if (savedCleanerId) {
+      setSelectedCleanerId(savedCleanerId)
+    }
+    
+    if (savedPeriod) {
+      setTimePeriod(Number(savedPeriod))
+    }
+  }, [])
 
   // Fetch cleaning data
   useEffect(() => {
@@ -212,6 +229,7 @@ function VanishPageContent() {
             fotoFalla: step.failurePhoto
           })) || [],
           sesionId: cleaning.sessionId,
+          limpiadorId: cleaning.cleanerId, // Add cleaner ID
           completa: cleaning.complete,
           razon: cleaning.reason,
           fallado: cleaning.failed,
@@ -235,13 +253,20 @@ function VanishPageContent() {
     fetchLimpiezas()
   }, [])
   
-  // Recalculate KSV stats when time period or sessions change
+  // Recalculate KSV stats when time period, sessions, or cleaner filter change
   useEffect(() => {
     if (sessions.length > 0) {
-      const ksvData = calculateKSVStats(sessions, timePeriod)
+      // Filter sessions by selected cleaner
+      const filteredSessions = selectedCleanerId 
+        ? sessions.filter(session => 
+            session.operations.some(op => op.limpiadorId === selectedCleanerId)
+          )
+        : sessions
+      
+      const ksvData = calculateKSVStats(filteredSessions, timePeriod)
       setKsvStats(ksvData)
     }
-  }, [sessions, timePeriod])
+  }, [sessions, timePeriod, selectedCleanerId])
 
   // Process cleaning operations into sessions (1+ hour break = new session)
   const processCleaningSessions = (operations: LimpiezaCompleta[]): CleaningSession[] => {
@@ -343,7 +368,14 @@ function VanishPageContent() {
   }
 
   const getSortedSessions = () => {
-    return [...sessions].sort((a, b) => {
+    // Filter sessions by selected cleaner first
+    const filteredSessions = selectedCleanerId 
+      ? sessions.filter(session => 
+          session.operations.some(op => op.limpiadorId === selectedCleanerId)
+        )
+      : sessions
+    
+    return [...filteredSessions].sort((a, b) => {
       let comparison = 0
       
       switch (sortField) {
@@ -483,26 +515,146 @@ function VanishPageContent() {
     input.click()
   }
 
+  // Handle photo upload for failed steps
+  const uploadStepFailurePhoto = async (operationId: string, stepId: number) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        try {
+          setMarkingFailure(`step-${stepId}`)
+
+          const formData = new FormData()
+          formData.append('file', file)
+
+          const uploadResponse = await fetch('/api/upload-image', {
+            method: 'POST',
+            body: formData
+          })
+
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json()
+            const photoUrl: string = uploadData.url
+            
+            // Use the API to update step with photo
+            const response = await fetch('/api/vanish/step', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                operationId,
+                stepId,
+                failed: true,
+                photoUrl
+              })
+            })
+
+            if (!response.ok) {
+              throw new Error('Error al marcar falla del paso')
+            }
+
+            // Refresh data
+            await refreshData()
+          } else {
+            const errorData = await uploadResponse.json().catch(() => ({ error: 'Error desconocido' }))
+            throw new Error(errorData.error || 'Error al subir la foto')
+          }
+        } catch (error) {
+          console.error('Error uploading step photo:', error)
+          alert('Error al subir la foto: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+        } finally {
+          setMarkingFailure(null)
+        }
+      }
+    }
+    input.click()
+  }
+
+  // Remove failure photo for a step
+  const removeStepFailurePhoto = async (operationId: string, stepId: number) => {
+    try {
+      setMarkingFailure(`step-${stepId}`)
+      await toggleStepFailure(operationId, stepId, true) // Keep failed state but API will remove photo
+    } catch (error) {
+      console.error('Error removing step photo:', error)
+      alert('Error al eliminar la foto: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+    }
+  }
+
+  // Helper function to refresh data
+  const refreshData = async () => {
+    const fetchResponse = await fetch('/api/cleanings')
+    if (fetchResponse.ok) {
+      const data = await fetchResponse.json()
+      const cleaningData = Array.isArray(data) ? data : (data.data || [])
+      
+      // Convert and update data
+      const formattedData = cleaningData.map((cleaning: any) => ({
+        ...cleaning,
+        habitacion: cleaning.room,
+        tipo: cleaning.type,
+        horaInicio: new Date(cleaning.startTime),
+        horaFin: cleaning.endTime ? new Date(cleaning.endTime) : new Date(),
+        pasos: cleaning.steps?.map((step: any) => ({
+          ...step,
+          horaInicio: step.startTime ? new Date(step.startTime) : null,
+          horaCompletado: step.completedTime ? new Date(step.completedTime) : null,
+          tiempoTranscurrido: step.elapsedTime,
+          foto: step.photo,
+          validacionIA: step.validationAI ? {
+            esValida: step.validationAI.isValid,
+            analisis: {
+              esperaba: step.validationAI.analysis.expected,
+              encontro: step.validationAI.analysis.found
+            }
+          } : undefined,
+          corregido: step.corrected,
+          ignorado: step.ignored,
+          tipoFoto: step.photoType,
+          fallado: step.failed,
+          fotoFalla: step.failurePhoto
+        })) || [],
+        sesionId: cleaning.sessionId,
+        completa: cleaning.complete,
+        razon: cleaning.reason,
+        fallado: cleaning.failed,
+        fotoFalla: cleaning.failurePhoto
+      }))
+      
+      setLimpiezas(formattedData)
+      const processedSessions = processCleaningSessions(formattedData)
+      setSessions(processedSessions)
+      const ksvData = calculateKSVStats(processedSessions, timePeriod)
+      setKsvStats(ksvData)
+    }
+  }
+
   // Helper function to format photo URL correctly
   // Helper to get the correct URL for a photo, supporting SSR/CSR and env
   const getPhotoUrl = (photo: string): string => {
     if (!photo) return ''
+    
+    // Check if it's a full URL with port 8080 (nginx) that needs to be rewritten
+    if (photo.includes('localhost:8080/uploads/')) {
+      // Extract the path after /uploads/
+      const match = photo.match(/\/uploads\/(.+)$/)
+      if (match) {
+        // Use the Next.js API route to serve the file
+        return `/api/files/${match[1]}`
+      }
+    }
+    
     // If it's already a full URL (starts with http/https), use as is
     if (photo.startsWith('http://') || photo.startsWith('https://')) {
       return photo
     }
-    // For SSR/CSR consistency, try to use NGINX_BASE_URL if available
-    // @ts-ignore: process.env is available in Node/SSR, but not in browser
-    const NGINX_BASE_URL = typeof process !== 'undefined' && process.env && process.env.NGINX_BASE_URL
-      ? process.env.NGINX_BASE_URL
-      : (typeof window !== 'undefined' && (window as any).NGINX_BASE_URL)
-      ? (window as any).NGINX_BASE_URL
-      : undefined
-    if (NGINX_BASE_URL) {
-      return `${NGINX_BASE_URL}/uploads/${photo.replace(/^\/uploads\//, '')}`
-    }
-    // Fallback: relative path (may not work if not proxied)
-    return `/uploads/${photo.replace(/^\/uploads\//, '')}`
+    
+    // For relative paths, use the API route
+    const cleanPath = photo.replace(/^\/uploads\//, '')
+    return `/api/files/${cleanPath}`
   }
 
   // Mark operation or step as failed
@@ -913,21 +1065,59 @@ function VanishPageContent() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            className={
-                              markingFailure === `step-${paso.id}`
-                                ? "bg-gray-800 text-white border-gray-800"
-                                : paso.fallado 
-                                  ? "bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
-                                  : "text-black border-black hover:bg-gray-100"
-                            }
-                            onClick={() => toggleStepFailure(selectedOperation.id, paso.id, !paso.fallado)}
-                            disabled={markingFailure === `step-${paso.id}`}
-                          >
-                            Falla
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline"
+                              size="sm"
+                              className={
+                                markingFailure === `step-${paso.id}`
+                                  ? "bg-gray-800 text-white border-gray-800"
+                                  : paso.fallado 
+                                    ? "bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
+                                    : "text-black border-black hover:bg-gray-100"
+                              }
+                              onClick={() => toggleStepFailure(selectedOperation.id, paso.id, !paso.fallado)}
+                              disabled={markingFailure === `step-${paso.id}`}
+                            >
+                              Falla
+                            </Button>
+                            
+                            {paso.fallado && (
+                              paso.fotoFalla ? (
+                                // Show photo preview with remove button
+                                <div className="flex items-center gap-1">
+                                  <img
+                                    src={getPhotoUrl(paso.fotoFalla)}
+                                    alt="Foto de falla"
+                                    className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-red-200"
+                                    onClick={() => openGallery([paso.fotoFalla!], 0)}
+                                  />
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600 border-red-600 hover:bg-red-50 p-1 h-6 w-6"
+                                    onClick={() => removeStepFailurePhoto(selectedOperation.id, paso.id)}
+                                    disabled={markingFailure === `step-${paso.id}`}
+                                    title="Eliminar foto"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                // Show camera button when no photo
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                                  onClick={() => uploadStepFailurePhoto(selectedOperation.id, paso.id)}
+                                  disabled={markingFailure === `step-${paso.id}`}
+                                  title="Subir foto"
+                                >
+                                  <Camera className="w-4 h-4" />
+                                </Button>
+                              )
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1030,6 +1220,7 @@ function VanishPageContent() {
                   <thead>
                     <tr className="border-b bg-gray-50">
                       <th className="text-left p-3 font-medium text-gray-700">Habitación</th>
+                      <th className="text-left p-3 font-medium text-gray-700">Limpiador</th>
                       <th className="text-left p-3 font-medium text-gray-700">Hora de Inicio</th>
                       <th className="text-left p-3 font-medium text-gray-700">Duración</th>
                       <th className="text-left p-3 font-medium text-gray-700">Progreso</th>
@@ -1061,6 +1252,23 @@ function VanishPageContent() {
                               </a>
                             </div>
                             <div className="text-sm text-gray-500">{operation.tipo}</div>
+                          </td>
+                          <td className="p-3">
+                            {operation.limpiadorId ? (
+                              (() => {
+                                const cleaner = getCleanerById(operation.limpiadorId)
+                                return cleaner ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-lg">{cleaner.avatar}</span>
+                                    <span className="text-sm">{cleaner.name}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 text-sm">{operation.limpiadorId}</span>
+                                )
+                              })()
+                            ) : (
+                              <span className="text-gray-400 text-sm">Sin asignar</span>
+                            )}
                           </td>
                           <td className="p-3">
                             <div className="font-medium">
@@ -1179,35 +1387,36 @@ function VanishPageContent() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Estadísticas de Limpieza</h1>
           
+          {/* Filters */}
           <div className="flex items-center gap-4">
-            {/* Auto-close sessions button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  const response = await fetch('/api/auto-close-sessions', {
-                    method: 'POST'
-                  })
-                  const result = await response.json()
-                  
-                  if (result.success && result.closedSessions.length > 0) {
-                    alert(`Se cerraron ${result.closedSessions.length} sesión(es) que excedían las 12 horas`)
-                    window.location.reload()
-                  } else if (result.success) {
-                    alert('No hay sesiones que excedan las 12 horas')
+            {/* Cleaner Filter */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="cleanerFilter" className="text-sm font-medium text-gray-700">
+                Limpiador:
+              </label>
+              <select
+                id="cleanerFilter"
+                value={selectedCleanerId || ''}
+                onChange={(e) => {
+                  const value = e.target.value || null
+                  setSelectedCleanerId(value)
+                  // Save preference
+                  if (value) {
+                    localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER, value)
                   } else {
-                    alert('Error al cerrar sesiones automáticamente')
+                    localStorage.removeItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER)
                   }
-                } catch (error) {
-                  console.error('Error:', error)
-                  alert('Error al cerrar sesiones automáticamente')
-                }
-              }}
-              className="text-orange-600 border-orange-600 hover:bg-orange-50"
-            >
-              Cerrar Sesiones Largas
-            </Button>
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                {CLEANER_PROFILES.map(cleaner => (
+                  <option key={cleaner.id} value={cleaner.id}>
+                    {cleaner.avatar} {cleaner.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             
             {/* Time Period Selector */}
             <div className="flex items-center gap-2">
@@ -1217,7 +1426,12 @@ function VanishPageContent() {
               <select
                 id="timePeriod"
                 value={timePeriod}
-                onChange={(e) => setTimePeriod(Number(e.target.value))}
+                onChange={(e) => {
+                  const value = Number(e.target.value)
+                  setTimePeriod(value)
+                  // Save preference
+                  localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_PERIOD, value.toString())
+                }}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value={30}>Últimos 30 días</option>
@@ -1517,6 +1731,7 @@ function VanishPageContent() {
                           {getSortIcon('successRate')}
                         </div>
                       </th>
+                      <th className="text-left p-3 font-medium text-gray-700">Limpiador</th>
                       <th className="text-left p-3 font-medium text-gray-700">Fotos</th>
                     </tr>
                   </thead>
@@ -1562,6 +1777,32 @@ function VanishPageContent() {
                             session.successRate >= 80 ? 'text-yellow-600' : 'text-red-600'
                           }`}>
                             {session.successRate.toFixed(1)}%
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              // Get unique cleaners for this session
+                              const cleanerIds = [...new Set(session.operations
+                                .map(op => op.limpiadorId)
+                                .filter(Boolean))]
+                              
+                              if (cleanerIds.length === 0) {
+                                return <span className="text-gray-400 text-sm">Sin asignar</span>
+                              }
+                              
+                              return cleanerIds.map(cleanerId => {
+                                const cleaner = getCleanerById(cleanerId!)
+                                return cleaner ? (
+                                  <div key={cleanerId} className="flex items-center gap-1">
+                                    <span className="text-lg">{cleaner.avatar}</span>
+                                    <span className="text-sm">{cleaner.name}</span>
+                                  </div>
+                                ) : (
+                                  <span key={cleanerId} className="text-gray-400 text-sm">{cleanerId}</span>
+                                )
+                              })
+                            })()}
                           </div>
                         </td>
                         <td className="p-3">

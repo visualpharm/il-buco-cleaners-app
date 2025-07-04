@@ -40,6 +40,7 @@ export async function POST(request: Request) {
       id: data.id,
       room: data.habitacion,
       type: data.tipo,
+      cleanerId: data.limpiadorId, // Add cleaner ID
       startTime: startTime,
       endTime: data.horaFin ? new Date(data.horaFin) : (duration > TWELVE_HOURS_MS ? now : undefined),
       steps: data.pasos.map((paso: any) => ({
