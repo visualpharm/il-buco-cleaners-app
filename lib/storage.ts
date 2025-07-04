@@ -59,6 +59,9 @@ export async function saveImage(
   originalName: string,
   sessionId?: string
 ): Promise<{ filename: string; url: string }> {
+  // Debug: log upload intent
+  console.log('[saveImage] Uploading:', originalName, 'sessionId:', sessionId);
+
   await ensureUploadsDir();
 
   const ext = path.extname(originalName);
@@ -71,6 +74,9 @@ export async function saveImage(
   
   const filePath = path.join(fullDir, filename);
   await fs.writeFile(filePath, buffer);
+
+  // Debug: log where file was written
+  console.log('[saveImage] File written to:', filePath);
 
   // Generate URL based on environment
   let url: string;

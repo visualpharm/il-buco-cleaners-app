@@ -1,3 +1,8 @@
+/**
+ * Test configuration:
+ * - USE_REAL_DB_FOR_TESTS: If set to 'true', tests will use the real MongoDB URI from process.env.MONGODB_URI instead of an in-memory server.
+ * - DISABLE_TEST_DB_CLEANUP: If set to 'true', the test database will NOT be cleaned up after each test (test data will remain).
+ */
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { DatabaseService } from '@/lib/database';
@@ -16,57 +21,64 @@ let mongoServer: MongoMemoryServer;
  * @returns {Promise<TestDB>} Database connection and cleanup functions
  */
 export const setupTestDB = async (): Promise<TestDB> => {
-  try {
-    // Create a new in-memory MongoDB instance
+  const useRealDb = process.env.USE_REAL_DB_FOR_TESTS === 'true';
+  let db: Db;
+  let close: () => Promise<void> = async () => {};
+
+  if (useRealDb) {
+    // Use the real MongoDB URI
+    const { db: realDb } = await connectToDatabase();
+    db = realDb;
+    close = async () => {};
+  } else {
+    // In-memory MongoDB
     mongoServer = await MongoMemoryServer.create({
       instance: {
         dbName: 'test-db',
         port: 27017,
       },
     });
-    
     const uri = mongoServer.getUri();
-    
-    // Override the MongoDB URI for testing
     process.env.MONGODB_URI = uri;
-    
-    // Connect to the test database
-    const { db } = await connectToDatabase();
-    
-    return {
-      db,
-          close: async () => {
-        try {
-          if (mongoServer) {
-            await mongoServer.stop();
-          }
-        } catch (error) {
-          console.error('Error closing test database:', error);
-          throw error;
+    const { db: memDb } = await connectToDatabase();
+    db = memDb;
+    close = async () => {
+      try {
+        if (mongoServer) {
+          await mongoServer.stop();
         }
-      },
-      async cleanup(): Promise<void> {
-        try {
-          const collections = await db.collections();
-          await Promise.all(
-            collections.map(collection => 
-              collection.deleteMany({}).catch(error => 
-                console.error(`Error cleaning collection ${collection.collectionName}:`, error)
-              )
-            )
-          );
-          // Ensure all operations are complete
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-          console.error('Error during cleanup:', error);
-          throw error;
-        }
+      } catch (error) {
+        console.error('Error closing test database:', error);
+        throw error;
       }
     };
-  } catch (error) {
-    console.error('Error setting up test database:', error);
-    throw error;
   }
+
+  return {
+    db,
+    close,
+    async cleanup(): Promise<void> {
+      if (process.env.DISABLE_TEST_DB_CLEANUP === 'true') {
+        // Don't cleanup, leave test data
+        return;
+      }
+      try {
+        const collections = await db.collections();
+        await Promise.all(
+          collections.map(collection => 
+            collection.deleteMany({}).catch(error => 
+              console.error(`Error cleaning collection ${collection.collectionName}:`, error)
+            )
+          )
+        );
+        // Ensure all operations are complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error('Error during cleanup:', error);
+        throw error;
+      }
+    }
+  };
 };
 
 /**
