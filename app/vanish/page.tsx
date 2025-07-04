@@ -577,10 +577,32 @@ function VanishPageContent() {
   const removeStepFailurePhoto = async (operationId: string, stepId: number) => {
     try {
       setMarkingFailure(`step-${stepId}`)
-      await toggleStepFailure(operationId, stepId, true) // Keep failed state but API will remove photo
+      
+      // Call API to remove photo but keep failed state
+      const response = await fetch('/api/vanish/step', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operationId,
+          stepId,
+          failed: true,
+          photoUrl: undefined // This will remove the photo
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al eliminar la foto')
+      }
+
+      // Refresh data
+      await refreshData()
     } catch (error) {
       console.error('Error removing step photo:', error)
       alert('Error al eliminar la foto: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+    } finally {
+      setMarkingFailure(null)
     }
   }
 
@@ -637,6 +659,11 @@ function VanishPageContent() {
   const getPhotoUrl = (photo: string): string => {
     if (!photo) return ''
     
+    // If it already has /api/files/, return as is
+    if (photo.includes('/api/files/')) {
+      return photo
+    }
+    
     // Check if it's a full URL with port 8080 (nginx) that needs to be rewritten
     if (photo.includes('localhost:8080/uploads/')) {
       // Extract the path after /uploads/
@@ -652,9 +679,13 @@ function VanishPageContent() {
       return photo
     }
     
-    // For relative paths, use the API route
-    const cleanPath = photo.replace(/^\/uploads\//, '')
-    return `/api/files/${cleanPath}`
+    // If it starts with /uploads/, remove it and use API route
+    if (photo.startsWith('/uploads/')) {
+      return `/api/files/${photo.substring(9)}`
+    }
+    
+    // If it's just a path like "general/filename.jpg", use API route
+    return `/api/files/${photo}`
   }
 
   // Mark operation or step as failed
@@ -732,73 +763,114 @@ function VanishPageContent() {
   // Toggle step failure state
   const toggleStepFailure = async (operationId: string, stepId: number, failed: boolean) => {
     try {
-      setMarkingFailure(`step-${stepId}`)
-      
-      const response = await fetch('/api/vanish/step', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operationId,
-          stepId,
-          failed
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Error al marcar falla del paso')
-      }
-
-      // Refresh data
-      const fetchResponse = await fetch('/api/cleanings')
-      if (fetchResponse.ok) {
-        const data = await fetchResponse.json()
-        const cleaningData = Array.isArray(data) ? data : (data.data || [])
+      // If marking as failed, immediately open file upload dialog
+      if (failed) {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'image/*'
+        input.capture = 'environment'
         
-        // Convert and update data
-        const formattedData = cleaningData.map((cleaning: any) => ({
-          ...cleaning,
-          habitacion: cleaning.room,
-          tipo: cleaning.type,
-          horaInicio: new Date(cleaning.startTime),
-          horaFin: cleaning.endTime ? new Date(cleaning.endTime) : new Date(),
-          pasos: cleaning.steps?.map((step: any) => ({
-            ...step,
-            horaInicio: step.startTime ? new Date(step.startTime) : null,
-            horaCompletado: step.completedTime ? new Date(step.completedTime) : null,
-            tiempoTranscurrido: step.elapsedTime,
-            foto: step.photo,
-            validacionIA: step.validationAI ? {
-              esValida: step.validationAI.isValid,
-              analisis: {
-                esperaba: step.validationAI.analysis.expected,
-                encontro: step.validationAI.analysis.found
+        input.onchange = async (e) => {
+          const file = (e.target as HTMLInputElement).files?.[0]
+          if (file) {
+            // Upload photo and mark as failed
+            try {
+              setMarkingFailure(`step-${stepId}`)
+
+              const formData = new FormData()
+              formData.append('file', file)
+
+              const uploadResponse = await fetch('/api/upload-image', {
+                method: 'POST',
+                body: formData
+              })
+
+              if (uploadResponse.ok) {
+                const uploadData = await uploadResponse.json()
+                const photoUrl: string = uploadData.url
+                
+                // Use the API to update step with photo
+                const response = await fetch('/api/vanish/step', {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    operationId,
+                    stepId,
+                    failed: true,
+                    photoUrl
+                  })
+                })
+
+                if (!response.ok) {
+                  throw new Error('Error al marcar falla del paso')
+                }
+
+                // Refresh data
+                await refreshData()
+              } else {
+                const errorData = await uploadResponse.json().catch(() => ({ error: 'Error desconocido' }))
+                throw new Error(errorData.error || 'Error al subir la foto')
               }
-            } : undefined,
-            corregido: step.corrected,
-            ignorado: step.ignored,
-            tipoFoto: step.photoType,
-            fallado: step.failed,
-            fotoFalla: step.failurePhoto
-          })) || [],
-          sesionId: cleaning.sessionId,
-          completa: cleaning.complete,
-          razon: cleaning.reason,
-          fallado: cleaning.failed,
-          fotoFalla: cleaning.failurePhoto
-        }))
+            } catch (error) {
+              console.error('Error uploading step photo:', error)
+              alert('Error al subir la foto: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+            } finally {
+              setMarkingFailure(null)
+            }
+          } else {
+            // If no file selected, still mark as failed but without photo
+            setMarkingFailure(`step-${stepId}`)
+            
+            const response = await fetch('/api/vanish/step', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                operationId,
+                stepId,
+                failed: true
+              })
+            })
+
+            if (!response.ok) {
+              throw new Error('Error al marcar falla del paso')
+            }
+
+            await refreshData()
+            setMarkingFailure(null)
+          }
+        }
         
-        setLimpiezas(formattedData)
-        const processedSessions = processCleaningSessions(formattedData)
-        setSessions(processedSessions)
-        const ksvData = calculateKSVStats(processedSessions, timePeriod)
-        setKsvStats(ksvData)
+        input.click()
+      } else {
+        // If unmarking as failed, just update the state
+        setMarkingFailure(`step-${stepId}`)
+        
+        const response = await fetch('/api/vanish/step', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            operationId,
+            stepId,
+            failed: false
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error('Error al marcar falla del paso')
+        }
+
+        await refreshData()
+        setMarkingFailure(null)
       }
     } catch (error) {
       console.error('Error toggling step failure:', error)
       alert('Error al marcar falla del paso')
-    } finally {
       setMarkingFailure(null)
     }
   }
@@ -1042,27 +1114,16 @@ function VanishPageContent() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <div className="flex gap-1">
-                            {paso.foto && (
-                              <img
-                                src={getPhotoUrl(paso.foto)}
-                                alt="Foto del paso"
-                                className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
-                                onClick={() => openGallery(paso.foto ? [paso.foto] : [], 0)}
-                              />
-                            )}
-                            {paso.fotoFalla && (
-                              <img
-                                src={getPhotoUrl(paso.fotoFalla)}
-                                alt="Foto de falla"
-                                className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-red-200"
-                                onClick={() => openGallery(paso.fotoFalla ? [paso.fotoFalla] : [], 0)}
-                              />
-                            )}
-                            {!paso.foto && !paso.fotoFalla && (
-                              <span className="text-gray-400 text-sm">Sin fotos</span>
-                            )}
-                          </div>
+                          {paso.foto ? (
+                            <img
+                              src={getPhotoUrl(paso.foto)}
+                              alt="Foto del paso"
+                              className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                              onClick={() => openGallery(paso.foto ? [paso.foto] : [], 0)}
+                            />
+                          ) : (
+                            <span className="text-gray-400 text-sm">Sin fotos</span>
+                          )}
                         </td>
                         <td className="p-3">
                           <div className="flex items-center gap-2">
@@ -1259,7 +1320,12 @@ function VanishPageContent() {
                                 const cleaner = getCleanerById(operation.limpiadorId)
                                 return cleaner ? (
                                   <div className="flex items-center gap-1">
-                                    <span className="text-lg">{cleaner.avatar}</span>
+                                    <div 
+                                      className="w-5 h-5" 
+                                      dangerouslySetInnerHTML={{ 
+                                        __html: cleaner.avatar.replace(/width="\d+"/, 'width="100%"').replace(/height="\d+"/, 'height="100%"') 
+                                      }}
+                                    />
                                     <span className="text-sm">{cleaner.name}</span>
                                   </div>
                                 ) : (
@@ -1412,7 +1478,7 @@ function VanishPageContent() {
                 <option value="">Todos</option>
                 {CLEANER_PROFILES.map(cleaner => (
                   <option key={cleaner.id} value={cleaner.id}>
-                    {cleaner.avatar} {cleaner.name}
+                    {cleaner.name}
                   </option>
                 ))}
               </select>
@@ -1795,7 +1861,12 @@ function VanishPageContent() {
                                 const cleaner = getCleanerById(cleanerId!)
                                 return cleaner ? (
                                   <div key={cleanerId} className="flex items-center gap-1">
-                                    <span className="text-lg">{cleaner.avatar}</span>
+                                    <div 
+                                      className="w-5 h-5" 
+                                      dangerouslySetInnerHTML={{ 
+                                        __html: cleaner.avatar.replace(/width="\d+"/, 'width="100%"').replace(/height="\d+"/, 'height="100%"') 
+                                      }}
+                                    />
                                     <span className="text-sm">{cleaner.name}</span>
                                   </div>
                                 ) : (
