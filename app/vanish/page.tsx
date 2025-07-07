@@ -319,8 +319,16 @@ function VanishPageContent() {
     const endTime = new Date(Math.max(...operations.map(op => new Date(op.horaFin).getTime())))
     const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60) // in minutes
     
-    const failedOps = operations.filter(op => op.fallado || !op.completa).length
-    const successRate = operations.length > 0 ? ((operations.length - failedOps) / operations.length) * 100 : 100
+    // Calculate success rate based on individual steps across all operations
+    let totalSteps = 0
+    let failedSteps = 0
+    
+    operations.forEach(op => {
+      totalSteps += op.pasos.length
+      failedSteps += op.pasos.filter(paso => paso.fallado).length
+    })
+    
+    const successRate = totalSteps > 0 ? ((totalSteps - failedSteps) / totalSteps) * 100 : 100
     
     return {
       sessionId,
@@ -424,6 +432,65 @@ function VanishPageContent() {
     return `${mins}m`
   }
 
+  // Helper function to format room names
+  const formatRoomName = (roomName: string): string => {
+    // Remove "Suite" or "Suite con" from the name
+    let formatted = roomName.replace(/^Suite\s+(con\s+)?/i, '')
+    
+    // Apply specific room name transformations
+    const roomMappings: Record<string, string> = {
+      'Garden': 'Giardino',
+      'Esquinera': 'Paraíso',
+      'Living': 'Living',
+      'Terrassa': 'Terrazzo',
+      'Parrilla': 'Parrilla',
+      'Penthouse': 'Penthouse'
+    }
+    
+    // Check if room name contains any of the keys
+    for (const [key, value] of Object.entries(roomMappings)) {
+      if (formatted.toLowerCase().includes(key.toLowerCase())) {
+        return value
+      }
+    }
+    
+    return formatted
+  }
+
+  // Helper function to format room list with counts
+  const formatRoomList = (operations: LimpiezaCompleta[]): string => {
+    // Define all possible rooms
+    const allRooms = [
+      'Giardino', 'Paraíso', 'Living', 'Terrazzo', 
+      'Parrilla', 'Penthouse', 'Escalera'
+    ]
+    
+    // Count occurrences of each room
+    const roomCounts = new Map<string, number>()
+    operations.forEach(op => {
+      const formattedName = formatRoomName(op.habitacion)
+      roomCounts.set(formattedName, (roomCounts.get(formattedName) || 0) + 1)
+    })
+    
+    const cleanedRooms = Array.from(roomCounts.keys())
+    const missingRooms = allRooms.filter(room => !cleanedRooms.includes(room))
+    
+    // If all rooms were cleaned
+    if (missingRooms.length === 0) {
+      return 'Todas las habitaciones'
+    }
+    
+    // If all except 1 or 2 rooms were cleaned
+    if (missingRooms.length <= 2 && cleanedRooms.length >= 5) {
+      return `Todas menos ${missingRooms.join(', ')}`
+    }
+    
+    // Otherwise, list the cleaned rooms with counts
+    return Array.from(roomCounts.entries())
+      .map(([room, count]) => count > 1 ? `${room} x${count}` : room)
+      .join(', ')
+  }
+
   // Calculate KSR (Key Stats for Room/space)
   const calculateKSRStats = (operation: LimpiezaCompleta) => {
     const totalSteps = operation.pasos.length
@@ -433,10 +500,9 @@ function VanishPageContent() {
     // Calculate completion percentage
     const completionRate = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
     
-    // Calculate success rate - if operation is failed, success rate is 0
-    // Otherwise, calculate based on failed steps
-    const successRate = operation.fallado ? 0 : 
-      (totalSteps > 0 ? ((totalSteps - failedSteps) / totalSteps) * 100 : 100)
+    // Calculate success rate based on successful steps vs total steps
+    // Don't set to 0 just because operation is marked as failed
+    const successRate = totalSteps > 0 ? ((totalSteps - failedSteps) / totalSteps) * 100 : 100
     
     // Calculate duration
     const startTime = new Date(operation.horaInicio)
@@ -1059,7 +1125,7 @@ function VanishPageContent() {
               ← Volver a Sesión
             </Button>
             <h1 className="text-3xl font-bold text-gray-900">
-              Operaciones en {selectedOperation.habitacion} - 
+              Operaciones en {formatRoomName(selectedOperation.habitacion)} - 
               <a 
                 href={`/vanish?session=${selectedSessionId}`}
                 className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer ml-1"
@@ -1081,7 +1147,7 @@ function VanishPageContent() {
               </CardHeader>
               <CardContent>
                 <div className="text-xl font-bold text-blue-600">
-                  {selectedOperation.habitacion}
+                  {formatRoomName(selectedOperation.habitacion)}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">{selectedOperation.tipo}</p>
               </CardContent>
@@ -1150,8 +1216,7 @@ function VanishPageContent() {
                         className="border-b hover:bg-gray-50 transition-colors"
                       >
                         <td className="p-3">
-                          <div className="font-medium">{getStepTitle(paso.id, selectedOperation.tipo)}</div>
-                          <div className="text-sm text-gray-500">Paso {paso.id}</div>
+                          <span className="font-medium">{paso.id}. {getStepTitle(paso.id, selectedOperation.tipo)}</span>
                         </td>
                         <td className="p-3">
                           <div className="font-medium">
@@ -1176,58 +1241,57 @@ function VanishPageContent() {
                           </div>
                         </td>
                         <td className="p-3">
-                          {paso.foto ? (
+                          {paso.foto && (
                             <img
                               src={getPhotoUrl(paso.foto)}
                               alt="Foto del paso"
-                              className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                              className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
                               onClick={() => openGallery(paso.foto ? [paso.foto] : [], 0)}
                             />
-                          ) : (
-                            <span className="text-gray-400 text-sm">Sin fotos</span>
                           )}
                         </td>
                         <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline"
-                              size="sm"
-                              className={
-                                markingFailure === `step-${paso.id}`
-                                  ? "bg-gray-800 text-white border-gray-800"
-                                  : paso.fallado 
-                                    ? "bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
-                                    : "text-black border-black hover:bg-gray-100"
-                              }
-                              onClick={() => toggleStepFailure(selectedOperation.id, paso.id, !paso.fallado)}
-                              disabled={markingFailure === `step-${paso.id}`}
-                            >
-                              Falla
-                            </Button>
-                            
-                            {paso.fallado && (
-                              paso.fotoFalla ? (
-                                // Show photo preview with remove button
-                                <div className="flex items-center gap-1">
-                                  <img
-                                    src={getPhotoUrl(paso.fotoFalla)}
-                                    alt="Foto de falla"
-                                    className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-red-200"
-                                    onClick={() => openGallery([paso.fotoFalla!], 0)}
-                                  />
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-red-600 border-red-600 hover:bg-red-50 p-1 h-6 w-6"
-                                    onClick={() => removeStepFailurePhoto(selectedOperation.id, paso.id)}
-                                    disabled={markingFailure === `step-${paso.id}`}
-                                    title="Eliminar foto"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                // Show camera button when no photo
+                          {paso.fallado && paso.fotoFalla ? (
+                            // Show only the photo when there's a failure photo
+                            <div className="flex items-center gap-1">
+                              <img
+                                src={getPhotoUrl(paso.fotoFalla)}
+                                alt="Foto de falla"
+                                className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-red-200"
+                                onClick={() => openGallery([paso.fotoFalla!], 0)}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 border-red-600 hover:bg-red-50 p-1 h-6 w-6"
+                                onClick={() => removeStepFailurePhoto(selectedOperation.id, paso.id)}
+                                disabled={markingFailure === `step-${paso.id}`}
+                                title="Eliminar foto"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            // Show button when there's no failure photo
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                className={
+                                  markingFailure === `step-${paso.id}`
+                                    ? "bg-gray-800 text-white border-gray-800"
+                                    : paso.fallado 
+                                      ? "bg-gray-800 text-white border-gray-800 hover:bg-gray-700"
+                                      : "text-black border-black hover:bg-gray-100"
+                                }
+                                onClick={() => toggleStepFailure(selectedOperation.id, paso.id, !paso.fallado)}
+                                disabled={markingFailure === `step-${paso.id}`}
+                              >
+                                Falla
+                              </Button>
+                              
+                              {paso.fallado && !paso.fotoFalla && (
+                                // Show camera button when failed but no photo
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -1238,9 +1302,9 @@ function VanishPageContent() {
                                 >
                                   <Camera className="w-4 h-4" />
                                 </Button>
-                              )
-                            )}
-                          </div>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1371,7 +1435,7 @@ function VanishPageContent() {
                                   router.push(`/vanish?session=${selectedSession.sessionId}&operation=${operation.id}`)
                                 }}
                               >
-                                {operation.habitacion}
+                                {formatRoomName(operation.habitacion)}
                               </a>
                             </div>
                             <div className="text-sm text-gray-500">{operation.tipo}</div>
@@ -1575,64 +1639,7 @@ function VanishPageContent() {
         {/* Failure Statistics Table */}
         <Card className="mb-8">
           <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>Estadísticas de Fallas</CardTitle>
-              
-              {/* Filters */}
-              <div className="flex items-center gap-4">
-                {/* Cleaner Filter */}
-                <div className="flex items-center gap-2">
-                  <label htmlFor="cleanerFilter" className="text-sm font-medium text-gray-700">
-                    Limpiador:
-                  </label>
-                  <select
-                    id="cleanerFilter"
-                    value={selectedCleanerId || ''}
-                    onChange={(e) => {
-                      const value = e.target.value || null
-                      setSelectedCleanerId(value)
-                      // Save preference
-                      if (value) {
-                        localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER, value)
-                      } else {
-                        localStorage.removeItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER)
-                      }
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Todos</option>
-                    {CLEANER_PROFILES.map(cleaner => (
-                      <option key={cleaner.id} value={cleaner.id}>
-                        {cleaner.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* Time Period Selector */}
-                <div className="flex items-center gap-2">
-                  <label htmlFor="timePeriod" className="text-sm font-medium text-gray-700">
-                    Período:
-                  </label>
-                  <select
-                    id="timePeriod"
-                    value={timePeriod}
-                    onChange={(e) => {
-                      const value = Number(e.target.value)
-                      setTimePeriod(value)
-                      // Save preference
-                      localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_PERIOD, value.toString())
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value={30}>Últimos 30 días</option>
-                    <option value={90}>Últimos 90 días</option>
-                    <option value={180}>Últimos 6 meses</option>
-                    <option value={365}>Último año</option>
-                  </select>
-                </div>
-              </div>
-            </div>
+            <CardTitle>Estadísticas de Fallas</CardTitle>
           </CardHeader>
           <CardContent>
             {(() => {
@@ -1653,7 +1660,7 @@ function VanishPageContent() {
                 
                 if (hasFailed) {
                   const operationType = operation.tipo || 'habitacion'
-                  const roomName = operation.habitacion
+                  const roomName = formatRoomName(operation.habitacion)
                   
                   // Collect failure photos from operation and steps
                   const failurePhotos: string[] = []
@@ -1815,7 +1822,64 @@ function VanishPageContent() {
         {sessions.length > 0 ? (
           <Card>
             <CardHeader>
-              <CardTitle>Sesiones de Limpieza</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Sesiones de Limpieza</CardTitle>
+                
+                {/* Filters */}
+                <div className="flex items-center gap-4">
+                  {/* Cleaner Filter */}
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="cleanerFilter" className="text-sm font-medium text-gray-700">
+                      Limpiador:
+                    </label>
+                    <select
+                      id="cleanerFilter"
+                      value={selectedCleanerId || ''}
+                      onChange={(e) => {
+                        const value = e.target.value || null
+                        setSelectedCleanerId(value)
+                        // Save preference
+                        if (value) {
+                          localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER, value)
+                        } else {
+                          localStorage.removeItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_CLEANER)
+                        }
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Todos</option>
+                      {CLEANER_PROFILES.map(cleaner => (
+                        <option key={cleaner.id} value={cleaner.id}>
+                          {cleaner.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Time Period Selector */}
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="timePeriod" className="text-sm font-medium text-gray-700">
+                      Período:
+                    </label>
+                    <select
+                      id="timePeriod"
+                      value={timePeriod}
+                      onChange={(e) => {
+                        const value = Number(e.target.value)
+                        setTimePeriod(value)
+                        // Save preference
+                        localStorage.setItem(CLEANER_STORAGE_KEYS.VANISH_FILTER_PERIOD, value.toString())
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={30}>Últimos 30 días</option>
+                      <option value={90}>Últimos 90 días</option>
+                      <option value={180}>Últimos 6 meses</option>
+                      <option value={365}>Último año</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -1869,21 +1933,16 @@ function VanishPageContent() {
                         className="border-b hover:bg-gray-50 transition-colors"
                       >
                         <td className="p-3">
-                          <div className="font-medium">
-                            <a 
-                              href={`/vanish?session=${session.sessionId}`}
-                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                router.push(`/vanish?session=${session.sessionId}`)
-                              }}
-                            >
-                              {formatDateDisplay(session.startTime)}
-                            </a>
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {formatTimeShort(session.endTime)} fin
-                          </div>
+                          <a 
+                            href={`/vanish?session=${session.sessionId}`}
+                            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-medium"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              router.push(`/vanish?session=${session.sessionId}`)
+                            }}
+                          >
+                            {formatDateDisplay(session.startTime)}
+                          </a>
                         </td>
                         <td className="p-3">
                           <div className="font-medium">
@@ -1891,12 +1950,8 @@ function VanishPageContent() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <div className="font-medium">
-                            {session.roomCount}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {session.operations.map(op => op.habitacion).join(', ')}
-                          </div>
+                          <span className="font-medium">{session.roomCount}</span>
+                          <span className="text-gray-500 ml-3">{formatRoomList(session.operations)}</span>
                         </td>
                         <td className="p-3">
                           <div className={`font-medium ${
