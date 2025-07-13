@@ -430,6 +430,7 @@ export default function LimpiezaPage() {
   const [sesionActual, setSesionActual] = useState<SesionLimpieza | null>(null)
   const [fotoRequerida, setFotoRequerida] = useState<any>(null)
   const [fotosPedidasEnHabitacion, setFotosPedidasEnHabitacion] = useState<boolean>(false)
+  const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null)
   const [cleaningStats, setCleaningStats] = useState({
     lastCleaned: null as Date | null,
     spacesCleaned: 0,
@@ -864,6 +865,7 @@ export default function LimpiezaPage() {
         tipoFoto = tipoFotoRequerida.id;
       } finally {
         setValidandoFoto(false);
+        setSelectedPhotoPreview(null);
       }
     }
 
@@ -942,6 +944,7 @@ export default function LimpiezaPage() {
 
   const confirmarCorreccion = () => {
     setEsperandoCorreccion(false);
+    setSelectedPhotoPreview(null);
     const datosActualizados = [...datosLimpieza];
     
     // Update URL to remove correction state
@@ -1338,11 +1341,27 @@ export default function LimpiezaPage() {
               {tipoFotoRequerida && (
                 <div className="space-y-3">
                   <label className="block">
-                    <div className="border-2 border-dashed border-yellow-400 rounded-lg p-6 text-center cursor-pointer hover:border-yellow-500 transition-colors bg-yellow-50">
-                      <Camera className="w-8 h-8 mx-auto mb-3 text-yellow-600" />
-                      <h4 className="font-medium text-yellow-800 mb-2">{tipoFotoRequerida.titulo}</h4>
-                      <p className="text-sm text-yellow-700 mb-3">{tipoFotoRequerida.descripcion}</p>
-                      <p className="text-sm text-yellow-800 font-medium">Toca para tomar la foto requerida</p>
+                    <div className="border-2 border-dashed border-yellow-400 rounded-lg p-6 text-center cursor-pointer hover:border-yellow-500 transition-colors bg-yellow-50 min-h-[240px] flex flex-col justify-center">
+                      {validandoFoto ? (
+                        <>
+                          {selectedPhotoPreview && (
+                            <img 
+                              src={selectedPhotoPreview} 
+                              alt="Preview" 
+                              className="w-24 h-24 object-cover rounded-lg mx-auto mb-3"
+                            />
+                          )}
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-2"></div>
+                          <p className="text-sm text-yellow-700">Analizando foto con IA...</p>
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="w-8 h-8 mx-auto mb-3 text-yellow-600" />
+                          <h4 className="font-medium text-yellow-800 mb-2">{tipoFotoRequerida.titulo}</h4>
+                          <p className="text-sm text-yellow-700 mb-3">{tipoFotoRequerida.descripcion}</p>
+                          <p className="text-sm text-yellow-800 font-medium">Toca para tomar la foto requerida</p>
+                        </>
+                      )}
                       <Input
                         type="file"
                         accept="image/*"
@@ -1350,18 +1369,16 @@ export default function LimpiezaPage() {
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0]
-                          if (file) completarPaso(file)
+                          if (file) {
+                            // Create preview URL
+                            const previewUrl = URL.createObjectURL(file)
+                            setSelectedPhotoPreview(previewUrl)
+                            completarPaso(file)
+                          }
                         }}
                       />
                     </div>
                   </label>
-                </div>
-              )}
-
-              {validandoFoto && (
-                <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                  <p className="text-sm text-gray-600">Analizando foto con IA...</p>
                 </div>
               )}
 
@@ -1384,12 +1401,12 @@ export default function LimpiezaPage() {
 
               {esperandoCorreccion && (
                 <div className="space-y-3">
-                  <div className="p-4 bg-red-100 rounded-lg border-0">
-                    <div className="flex items-start">
-                      <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                  <div className="p-4 bg-red-100 rounded-lg border-0 flex items-center">
+                    <div className="flex items-center w-full">
+                      <XCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0" />
                       <div className="flex-1">
                         <div className="text-sm text-red-800">
-                          <div className="font-medium mb-2">{validacionActual?.analisis.esperaba}</div>
+                          <div className="font-medium">{validacionActual?.analisis.esperaba || "La foto no cumple con los requisitos esperados"}</div>
                           {validacionActual?.analisis.encontro && (
                             <div className="text-red-700">{validacionActual.analisis.encontro}</div>
                           )}
@@ -1398,9 +1415,24 @@ export default function LimpiezaPage() {
                     </div>
                   </div>
                   <div className="flex space-x-2">
-                    <Button onClick={confirmarCorreccion} className="flex-1">
-                      Ya corregí, sacar otra foto
-                    </Button>
+                    <label className="flex-1">
+                      <Button type="button" className="w-full" asChild>
+                        <span>Ya corregí. Sacar otra foto</span>
+                      </Button>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            confirmarCorreccion()
+                            completarPaso(file)
+                          }
+                        }}
+                      />
+                    </label>
                     <Button variant="outline" onClick={ignorarCorreccion} className="flex-1">
                       Todo bien, ignorar
                     </Button>
