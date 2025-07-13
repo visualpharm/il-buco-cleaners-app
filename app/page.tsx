@@ -268,6 +268,11 @@ const validarFotoConIA = async (
 
     const result = await response.json()
     
+    // Debug logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[DEV] AI validation result:', JSON.stringify(result, null, 2))
+    }
+    
     return {
       esValida: result.esValido,
       analisis: result.analisis,
@@ -275,12 +280,12 @@ const validarFotoConIA = async (
     }
   } catch (error) {
     console.error('Error validating photo:', error)
-    // Fallback to allowing continuation if API fails
+    // If API fails, reject the photo with an error message
     return {
-      esValida: true,
+      esValida: false,
       analisis: {
-        esperaba: "Validación completada",
-        encontro: "Procesado localmente"
+        esperaba: "Error al validar la foto",
+        encontro: "Intenta tomar otra foto"
       },
       ignorado: false,
     }
@@ -881,15 +886,31 @@ export default function LimpiezaPage() {
         // Use a local blob URL as fallback
         fotoUrl = URL.createObjectURL(foto);
         
-        // Mark validation as passed to allow continuation
+        // Mark validation as failed when there's an error
         validacion = {
-          esValida: true,
+          esValida: false,
           analisis: {
-            esperaba: tipoFotoRequerida.validacionIA || 'Foto requerida',
-            encontro: 'Error al subir - continuando sin validación'
+            esperaba: 'Error al procesar foto',
+            encontro: 'Intenta tomar otra foto'
           }
         };
         tipoFoto = tipoFotoRequerida.id;
+        
+        // Store the error state and show correction UI
+        const datosActualizados = [...datosLimpieza]
+        datosActualizados[pasoActual] = {
+          ...datosActualizados[pasoActual],
+          horaCompletado: undefined,
+          foto: fotoUrl,
+          validacionIA: validacion,
+          tipoFoto,
+          validationAttempts: 1,
+          validationStatus: 'pending',
+        }
+        setDatosLimpieza(datosActualizados);
+        setValidationAttempts(1);
+        setEsperandoCorreccion(true);
+        return;
       } finally {
         setValidandoFoto(false);
         setSelectedPhotoPreview(null);

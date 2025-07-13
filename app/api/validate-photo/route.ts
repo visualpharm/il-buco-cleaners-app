@@ -38,22 +38,31 @@ export async function POST(request: NextRequest) {
 Título: ${titulo}
 Descripción esperada: ${descripcion}
 
+PRIMERO verifica si la imagen es relevante:
+- Si es una captura de pantalla, página web, o algo completamente no relacionado, indica que es una foto incorrecta
+- Solo analiza elementos faltantes si la foto muestra el contexto correcto (habitación, cocina, etc.)
+
 Responde SOLO con un JSON en el siguiente formato:
 {
   "esValido": true/false,
   "analisis": {
-    "esperaba": "Falta: [elemento específico faltante]",
-    "encontro": "[instrucción breve y específica de qué hacer]"
+    "esperaba": "[qué esperabas ver]",
+    "encontro": "[instrucción de qué hacer]"
   }
 }
 
-IMPORTANTE: 
-- Si falta algo, en "esperaba" pon SOLO lo que falta (ej: "Falta: manta polar en mesita")
-- En "encontro" da una instrucción MUY BREVE de qué hacer (ej: "Colocá la manta en la mesita")
-- Máximo 5-7 palabras por campo
-- Sé específico sobre QUÉ falta o está mal
+REGLAS:
+1. Si la imagen NO es relevante (ej: captura de pantalla, página web, foto de otra cosa):
+   - esperaba: "Foto incorrecta: no es ${titulo.toLowerCase()}"
+   - encontro: "Sacá foto de ${titulo.toLowerCase()}"
 
-Si la foto muestra correctamente TODO lo solicitado, esValido debe ser true.`
+2. Si la imagen ES relevante pero faltan elementos:
+   - esperaba: "Falta: [elemento específico]"
+   - encontro: "[acción específica a tomar]"
+
+3. Si todo está correcto: esValido = true
+
+Máximo 5-7 palabras por campo. Sé específico y claro.`
             },
             {
               type: "image_url",
