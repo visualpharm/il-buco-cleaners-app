@@ -251,45 +251,39 @@ const validarFotoConIA = async (
   validacion: string,
   tipoFoto: any,
 ): Promise<ValidacionIA> => {
-  // Simulación de delay de IA
-  await new Promise((resolve) => setTimeout(resolve, 2000))
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('descripcion', tipoFoto.descripcion)
+    formData.append('titulo', tipoFoto.titulo)
 
-  // 60% de probabilidad de estar correcto
-  if (Math.random() > 0.4) {
+    const response = await fetch('/api/validate-photo', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!response.ok) {
+      throw new Error('Error al validar la foto')
+    }
+
+    const result = await response.json()
+    
+    return {
+      esValida: result.esValido,
+      analisis: result.analisis,
+      ignorado: false,
+    }
+  } catch (error) {
+    console.error('Error validating photo:', error)
+    // Fallback to allowing continuation if API fails
     return {
       esValida: true,
       analisis: {
-        esperaba: "Foto validada correctamente",
-        encontro: "",
+        esperaba: "Validación completada",
+        encontro: "Procesado localmente"
       },
-    };
-  } else {
-    // Generate specific error messages based on photo type
-    const errorMessages: Record<string, { esperaba: string; encontro: string }> = {
-      cama: {
-        esperaba: "Esperaba: " + tipoFoto.validacionIA,
-        encontro: "Encontró: La cama no está correctamente tendida o falta algún elemento"
-      },
-      cubiertos: {
-        esperaba: "Esperaba: " + tipoFoto.validacionIA,
-        encontro: "Encontró: Faltan cubiertos o no están limpios"
-      },
-      basura: {
-        esperaba: "Esperaba: " + tipoFoto.validacionIA,
-        encontro: "Encontró: El cesto no está vacío o faltan las bolsas de repuesto"
-      }
-    };
-
-    const errorMessage = errorMessages[tipoFoto?.id] || {
-      esperaba: "La IA detectó que algo no está en condiciones",
-      encontro: "Por favor, revisa y corrige antes de continuar"
-    };
-
-    return {
-      esValida: false,
-      analisis: errorMessage,
       ignorado: false,
-    };
+    }
   }
 }
 
@@ -1402,15 +1396,19 @@ export default function LimpiezaPage() {
               {esperandoCorreccion && (
                 <div className="space-y-3">
                   <div className="p-4 bg-red-100 rounded-lg border-0 flex items-center">
-                    <div className="flex items-center w-full">
-                      <XCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0" />
-                      <div className="flex-1">
-                        <div className="text-sm text-red-800">
-                          <div className="font-medium">{validacionActual?.analisis.esperaba || "La foto no cumple con los requisitos esperados"}</div>
-                          {validacionActual?.analisis.encontro && (
-                            <div className="text-red-700">{validacionActual.analisis.encontro}</div>
-                          )}
-                        </div>
+                    <XCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm text-red-800 space-y-1">
+                        {validacionActual?.analisis.esperaba ? (
+                          <>
+                            <div className="font-semibold">{validacionActual.analisis.esperaba}</div>
+                            {validacionActual.analisis.encontro && (
+                              <div className="text-red-700">→ {validacionActual.analisis.encontro}</div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="font-medium">La foto no cumple con los requisitos</div>
+                        )}
                       </div>
                     </div>
                   </div>

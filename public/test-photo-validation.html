@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Photo Validation</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .container {
+      background: #f5f5f5;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    .error-box {
+      background: #fee;
+      border: 1px solid #fcc;
+      color: #c00;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+      display: none;
+    }
+    .error-box.show {
+      display: block;
+    }
+    .btn {
+      background: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: #0056b3;
+    }
+    #loading {
+      display: none;
+      color: #666;
+      margin: 20px 0;
+    }
+    #preview {
+      max-width: 200px;
+      margin: 20px 0;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Test de Validación de Fotos</h1>
+    <p>Esta página prueba la validación de fotos con IA</p>
+    
+    <div>
+      <h3>Requisito: Cama Completa</h3>
+      <p>Mostrá la cama completa con sábana, fundas de almohada, funda del acolchado alineada, pie de cama con arrugas y manta polar en mesita de luz</p>
+    </div>
+
+    <div>
+      <label for="photo" class="btn">Seleccionar Foto</label>
+      <input type="file" id="photo" accept="image/*" style="display: none;">
+    </div>
+
+    <img id="preview" alt="Preview">
+    
+    <div id="loading">Analizando foto con IA...</div>
+    
+    <div id="error" class="error-box">
+      <div id="error-content"></div>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('photo');
+    const preview = document.getElementById('preview');
+    const loading = document.getElementById('loading');
+    const errorBox = document.getElementById('error');
+    const errorContent = document.getElementById('error-content');
+    const result = document.getElementById('result');
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Show preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+
+      // Hide previous results
+      errorBox.classList.remove('show');
+      result.innerHTML = '';
+      loading.style.display = 'block';
+
+      // Prepare form data
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('descripcion', 'Mostrá la cama completa con sábana, fundas de almohada, funda del acolchado alineada, pie de cama con arrugas y manta polar en mesita de luz');
+      formData.append('titulo', 'Cama Completa');
+
+      try {
+        const response = await fetch('/api/validate-photo', {
+          method: 'POST',
+          body: formData
+        });
+
+        loading.style.display = 'none';
+        
+        const data = await response.json();
+        console.log('Response:', data);
+
+        if (data.esValido === false) {
+          errorBox.classList.add('show');
+          let errorHTML = '';
+          
+          if (data.analisis && data.analisis.esperaba) {
+            errorHTML += `<strong>${data.analisis.esperaba}</strong><br>`;
+          }
+          if (data.analisis && data.analisis.encontro) {
+            errorHTML += `→ ${data.analisis.encontro}`;
+          }
+          
+          errorContent.innerHTML = errorHTML || 'La foto no cumple con los requisitos';
+        } else {
+          result.innerHTML = '<div style="color: green;">✓ Foto validada correctamente</div>';
+        }
+      } catch (error) {
+        loading.style.display = 'none';
+        errorBox.classList.add('show');
+        errorContent.innerHTML = 'Error al procesar la foto';
+        console.error('Error:', error);
+      }
+    });
+  </script>
+</body>
+</html>
