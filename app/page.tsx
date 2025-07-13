@@ -80,9 +80,8 @@ const HABITACIONES = [
     nombre: "Penthouse",
     piso: "2do Piso",
     icono: BedIcon,
-    color: "bg-pink-100",
+    color: "bg-pink-100 hover:bg-pink-200",
     tipo: "habitacion",
-    disabled: true,
   },
   {
     nombre: "Parrilla",
