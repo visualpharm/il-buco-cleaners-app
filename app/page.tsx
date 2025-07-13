@@ -293,10 +293,12 @@ interface StepData {
   horaCompletado?: Date
   tiempoTranscurrido?: number
   foto?: string
-  validacionIA?: { esValida: boolean; analisis: { esperaba: string; encontro: string } }
+  validacionIA?: { esValida: boolean; analisis: { esperaba: string; encontro: string }; autoAccepted?: boolean; ignorado?: boolean }
   corregido?: boolean
   ignorado?: boolean
   tipoFoto?: string
+  validationAttempts?: number
+  validationStatus?: 'passed' | 'failed_after_retries' | 'skipped' | 'pending'
 }
 
 interface SesionLimpieza {
@@ -425,6 +427,7 @@ export default function LimpiezaPage() {
   const [fotoRequerida, setFotoRequerida] = useState<any>(null)
   const [fotosPedidasEnHabitacion, setFotosPedidasEnHabitacion] = useState<boolean>(false)
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null)
+  const [validationAttempts, setValidationAttempts] = useState<number>(0)
   const [cleaningStats, setCleaningStats] = useState({
     lastCleaned: null as Date | null,
     spacesCleaned: 0,
@@ -827,10 +830,40 @@ export default function LimpiezaPage() {
           localStorage.setItem('sesionLimpieza', JSON.stringify(updatedSession));
         }
 
-        // If validation failed and user didn't ignore, don't proceed
+        // Handle validation failure
         if (!validacion.esValida && !validacion.ignorado) {
-          setEsperandoCorreccion(true);
-          return;
+          const newAttempts = validationAttempts + 1;
+          setValidationAttempts(newAttempts);
+          
+          // After 2 attempts, auto-accept with failed_validation flag
+          if (newAttempts >= 2) {
+            validacion.esValida = true;
+            validacion.autoAccepted = true;
+            validacion.analisis = {
+              esperaba: "Foto aceptada para revisión posterior",
+              encontro: `Falló validación después de ${newAttempts} intentos`
+            };
+            // Reset attempts for next photo
+            setValidationAttempts(0);
+          } else {
+            // Store the validation result even though we're not proceeding yet
+            const datosActualizados = [...datosLimpieza]
+            datosActualizados[pasoActual] = {
+              ...datosActualizados[pasoActual],
+              horaCompletado: undefined, // Not completed yet
+              foto: fotoUrl || URL.createObjectURL(foto),
+              validacionIA: validacion,
+              tipoFoto,
+              validationAttempts: newAttempts,
+              validationStatus: 'pending',
+            }
+            setDatosLimpieza(datosActualizados);
+            setEsperandoCorreccion(true);
+            return;
+          }
+        } else {
+          // Reset attempts on success or skip
+          setValidationAttempts(0);
         }
       } catch (error) {
         // Show error in development only
@@ -900,6 +933,12 @@ export default function LimpiezaPage() {
       foto: fotoUrl || (foto ? URL.createObjectURL(foto) : undefined), // Use uploaded URL if available
       validacionIA: validacion,
       tipoFoto,
+      validationAttempts: validacion ? validationAttempts : undefined,
+      validationStatus: validacion ? (
+        validacion.ignorado ? 'skipped' : 
+        validacion.autoAccepted ? 'failed_after_retries' : 
+        validacion.esValida ? 'passed' : 'pending'
+      ) : undefined,
     }
 
     setDatosLimpieza(datosActualizados)
@@ -972,9 +1011,11 @@ export default function LimpiezaPage() {
       datosActualizados[pasoActual] = {
         ...datosActualizados[pasoActual],
         ignorado: true,
+        validationStatus: 'skipped',
       };
       setDatosLimpieza(datosActualizados);
       setFotoRequerida(null);
+      setValidationAttempts(0); // Reset attempts
       completarPaso();
     } else {
       console.error('Paso actual no encontrado en datosLimpieza');
@@ -1395,8 +1436,13 @@ export default function LimpiezaPage() {
 
               {esperandoCorreccion && (
                 <div className="space-y-3">
-                  <div className="p-4 bg-red-100 rounded-lg border-0 flex items-center">
-                    <XCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
+                  <div className="p-4 bg-red-100 rounded-lg border-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        <XCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
+                        <span className="text-xs font-medium text-red-800">Intento {validationAttempts} de 2</span>
+                      </div>
+                    </div>
                     <div className="flex-1">
                       <div className="text-sm text-red-800 space-y-1">
                         {validacionActual?.analisis.esperaba ? (
@@ -1412,9 +1458,9 @@ export default function LimpiezaPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <label className="flex-1">
-                      <Button type="button" className="w-full" asChild>
+                  <div className="grid grid-cols-1 gap-2">
+                    <label>
+                      <Button type="button" className="w-full bg-black text-white hover:bg-gray-800" asChild>
                         <span>Ya corregí. Sacar otra foto</span>
                       </Button>
                       <Input
@@ -1431,8 +1477,8 @@ export default function LimpiezaPage() {
                         }}
                       />
                     </label>
-                    <Button variant="outline" onClick={ignorarCorreccion} className="flex-1">
-                      Todo bien, ignorar
+                    <Button variant="outline" onClick={ignorarCorreccion} className="w-full">
+                      No puedo cumplir con este requisito
                     </Button>
                   </div>
                 </div>

@@ -57,6 +57,8 @@ export interface ChecklistProgress {
         expected: string;
         found: string;
       };
+      autoAccepted?: boolean;
+      ignored?: boolean;
     };
     corrected?: boolean;
     ignored?: boolean;
@@ -64,6 +66,8 @@ export interface ChecklistProgress {
     completed?: boolean;
     failed?: boolean;
     failurePhoto?: string;
+    validationAttempts?: number;
+    validationStatus?: 'passed' | 'failed_after_retries' | 'skipped' | 'pending';
   }[];
   sessionId?: string;
   complete: boolean;

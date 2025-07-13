@@ -54,13 +54,17 @@ export async function POST(request: Request) {
           analysis: {
             expected: paso.validacionIA.analisis.esperaba,
             found: paso.validacionIA.analisis.encontro
-          }
+          },
+          autoAccepted: paso.validacionIA.autoAccepted,
+          ignored: paso.validacionIA.ignorado
         } : undefined,
         corrected: paso.corregido,
         ignored: paso.ignorado,
         photoType: paso.tipoFoto,
         failed: paso.fallado,
-        failurePhoto: paso.fotoFalla
+        failurePhoto: paso.fotoFalla,
+        validationAttempts: paso.validationAttempts,
+        validationStatus: paso.validationStatus
       })),
       sessionId: data.sesionId,
       complete: data.completa || false || (duration > TWELVE_HOURS_MS),
