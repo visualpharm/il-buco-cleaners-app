@@ -47,7 +47,7 @@ const StairsIcon = ({ className }: { className?: string }) => (
 const HABITACIONES = [
   // Planta Baja - Blue
   {
-    nombre: "Garden Room",
+    nombre: "Giardino",
     piso: "Planta Baja",
     icono: BedIcon,
     color: "bg-blue-100 hover:bg-blue-200",
@@ -62,14 +62,14 @@ const HABITACIONES = [
   },
   // 1er Piso - Orange
   {
-    nombre: "Suite Esquinera",
+    nombre: "Paraiso",
     piso: "1er Piso",
     icono: BedIcon,
     color: "bg-orange-100 hover:bg-orange-200",
     tipo: "habitacion",
   },
   {
-    nombre: "Suite con Terraza",
+    nombre: "Terrazzo",
     piso: "1er Piso",
     icono: BedIcon,
     color: "bg-orange-100 hover:bg-orange-200",
