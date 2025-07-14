@@ -774,6 +774,12 @@ function VanishPageContent() {
   const getPhotoUrl = (photo: string): string => {
     if (!photo) return ''
     
+    // Skip blob URLs as they're invalid outside original session
+    if (photo.startsWith('blob:')) {
+      console.warn('Blob URL detected, cannot display:', photo)
+      return '' // Return empty to filter it out
+    }
+    
     // If it already has /api/files/, return as is
     if (photo.includes('/api/files/')) {
       return photo
@@ -1057,14 +1063,14 @@ function VanishPageContent() {
   const getOperationPhotos = (operation: LimpiezaCompleta): string[] => {
     const photos: string[] = []
     
-    // Add step photos
+    // Add step photos (excluding blob URLs)
     operation.pasos.forEach(paso => {
-      if (paso.foto) photos.push(paso.foto)
-      if (paso.fotoFalla) photos.push(paso.fotoFalla)
+      if (paso.foto && !paso.foto.startsWith('blob:')) photos.push(paso.foto)
+      if (paso.fotoFalla && !paso.fotoFalla.startsWith('blob:')) photos.push(paso.fotoFalla)
     })
     
-    // Add operation failure photo
-    if (operation.fotoFalla) photos.push(operation.fotoFalla)
+    // Add operation failure photo (excluding blob URLs)
+    if (operation.fotoFalla && !operation.fotoFalla.startsWith('blob:')) photos.push(operation.fotoFalla)
     
     return photos
   }
@@ -1072,7 +1078,7 @@ function VanishPageContent() {
   const getOperationCleanerPhotos = (operation: LimpiezaCompleta): string[] => {
     // Only return cleaner photos (not failure photos) for thumbnail display
     return operation.pasos
-      .filter(paso => paso.foto)
+      .filter(paso => paso.foto && !paso.foto.startsWith('blob:'))
       .map(paso => paso.foto!)
   }
 
@@ -1089,7 +1095,7 @@ function VanishPageContent() {
     session.operations.forEach(op => {
       photos.push(...getOperationCleanerPhotos(op))
     })
-    return photos
+    return photos.filter(photo => photo && !photo.startsWith('blob:'))
   }
 
   if (isLoading) {
@@ -1111,12 +1117,80 @@ function VanishPageContent() {
     )
   }
 
+  // Gallery modal component
+  const GalleryModal = () => {
+    if (!galleryOpen) return null
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+        <div className="relative w-full h-full flex items-center justify-center">
+          {/* Close button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute top-4 right-4 text-white hover:bg-white hover:bg-opacity-20 z-10"
+            onClick={closeGallery}
+          >
+            <X className="w-6 h-6" />
+          </Button>
+
+          {/* Previous button */}
+          {galleryPhotos.length > 1 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute left-4 text-white hover:bg-white hover:bg-opacity-20"
+              onClick={prevPhoto}
+            >
+              <ChevronLeft className="w-8 h-8" />
+            </Button>
+          )}
+
+          {/* Current photo */}
+          <div className="max-w-[90vw] max-h-[90vh] flex items-center justify-center">
+            <img
+              src={getPhotoUrl(galleryPhotos[currentPhotoIndex])}
+              alt={`Foto ${currentPhotoIndex + 1} de ${galleryPhotos.length}`}
+              className="max-w-full max-h-full object-contain"
+              style={{ imageRendering: 'auto' }}
+            />
+          </div>
+
+          {/* Next button */}
+          {galleryPhotos.length > 1 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-4 text-white hover:bg-white hover:bg-opacity-20"
+              onClick={nextPhoto}
+            >
+              <ChevronRight className="w-8 h-8" />
+            </Button>
+          )}
+
+          {/* Photo counter */}
+          {galleryPhotos.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded">
+              {currentPhotoIndex + 1} de {galleryPhotos.length}
+            </div>
+          )}
+
+          {/* Instructions */}
+          <div className="absolute bottom-4 right-4 text-white text-sm opacity-70">
+            Usa ← → o Espacio para navegar • Esc para cerrar
+          </div>
+        </div>
+      </div>
+    )
+  }
+  
   // Show operation detail view if an operation is selected
   if (selectedOperation && selectedSession) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center mb-6">
+      <>
+        <div className="min-h-screen bg-gray-50 p-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center mb-6">
             <Button 
               variant="outline" 
               onClick={() => router.push(`/vanish?session=${selectedSessionId}`)}
@@ -1315,12 +1389,15 @@ function VanishPageContent() {
           </Card>
         </div>
       </div>
+      <GalleryModal />
+      </>
     )
   }
 
   // Show session detail view if a session is selected
   if (selectedSession) {
     return (
+      <>
       <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center mb-6">
@@ -1490,15 +1567,29 @@ function VanishPageContent() {
                           </td>
                           <td className="p-3">
                             <div className="flex flex-wrap gap-1">
-                              {getOperationCleanerPhotos(operation).map((photo, photoIndex) => (
-                                <img
-                                  key={photoIndex}
-                                  src={getPhotoUrl(photo)}
-                                  alt={`Foto ${photoIndex + 1}`}
-                                  className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
-                                  onClick={() => openGallery(getOperationPhotos(operation), getOperationPhotos(operation).indexOf(photo))}
-                                />
-                              ))}
+                              {getOperationCleanerPhotos(operation).map((photo, mapIndex) => {
+                                const photoUrl = getPhotoUrl(photo)
+                                // Only render if we have a valid URL (not empty from blob filter)
+                                return photoUrl ? (
+                                  <img
+                                    key={mapIndex}
+                                    src={photoUrl}
+                                    alt={`Foto ${mapIndex + 1}`}
+                                    className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                                    onClick={() => {
+                                      const allPhotos = getOperationPhotos(operation)
+                                      const galleryIndex = allPhotos.indexOf(photo)
+                                      // Only open gallery if photo is in the array
+                                      if (galleryIndex >= 0) {
+                                        openGallery(allPhotos, galleryIndex)
+                                      } else {
+                                        // If not found, just open with this photo
+                                        openGallery([photo], 0)
+                                      }
+                                    }}
+                                  />
+                                ) : null
+                              })}
                               {getOperationCleanerPhotos(operation).length === 0 && (
                                 <span className="text-gray-400 text-sm">Sin fotos</span>
                               )}
@@ -1569,6 +1660,8 @@ function VanishPageContent() {
           </Card>
         </div>
       </div>
+      <GalleryModal />
+      </>
     )
   }
 
@@ -1994,15 +2087,26 @@ function VanishPageContent() {
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
-                            {getSessionCleanerPhotos(session).slice(0, 6).map((photo, photoIndex) => (
-                              <img
-                                key={photoIndex}
-                                src={getPhotoUrl(photo)}
-                                alt={`Foto ${photoIndex + 1}`}
-                                className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
-                                onClick={() => openGallery(getSessionPhotos(session), getSessionPhotos(session).indexOf(photo))}
-                              />
-                            ))}
+                            {getSessionCleanerPhotos(session).slice(0, 6).map((photo, mapIndex) => {
+                              const photoUrl = getPhotoUrl(photo)
+                              return photoUrl ? (
+                                <img
+                                  key={mapIndex}
+                                  src={photoUrl}
+                                  alt={`Foto ${mapIndex + 1}`}
+                                  className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity border border-gray-200"
+                                  onClick={() => {
+                                    const allPhotos = getSessionPhotos(session)
+                                    const galleryIndex = allPhotos.indexOf(photo)
+                                    if (galleryIndex >= 0) {
+                                      openGallery(allPhotos, galleryIndex)
+                                    } else {
+                                      openGallery([photo], 0)
+                                    }
+                                  }}
+                                />
+                              ) : null
+                            })}
                             {getSessionCleanerPhotos(session).length > 6 && (
                               <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-xs cursor-pointer hover:bg-gray-300"
                                    onClick={() => openGallery(getSessionPhotos(session), 6)}>
@@ -2035,68 +2139,7 @@ function VanishPageContent() {
           </Card>
         )}
 
-        {/* Photo Gallery Modal */}
-        {galleryOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
-            <div className="relative w-full h-full flex items-center justify-center">
-              {/* Close button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-4 right-4 text-white hover:bg-white hover:bg-opacity-20 z-10"
-                onClick={closeGallery}
-              >
-                <X className="w-6 h-6" />
-              </Button>
-
-              {/* Previous button */}
-              {galleryPhotos.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute left-4 text-white hover:bg-white hover:bg-opacity-20"
-                  onClick={prevPhoto}
-                >
-                  <ChevronLeft className="w-8 h-8" />
-                </Button>
-              )}
-
-              {/* Current photo */}
-              <div className="max-w-[90vw] max-h-[90vh] flex items-center justify-center">
-                <img
-                  src={getPhotoUrl(galleryPhotos[currentPhotoIndex])}
-                  alt={`Foto ${currentPhotoIndex + 1} de ${galleryPhotos.length}`}
-                  className="max-w-full max-h-full object-contain"
-                  style={{ imageRendering: 'auto' }}
-                />
-              </div>
-
-              {/* Next button */}
-              {galleryPhotos.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-4 text-white hover:bg-white hover:bg-opacity-20"
-                  onClick={nextPhoto}
-                >
-                  <ChevronRight className="w-8 h-8" />
-                </Button>
-              )}
-
-              {/* Photo counter */}
-              {galleryPhotos.length > 1 && (
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded">
-                  {currentPhotoIndex + 1} de {galleryPhotos.length}
-                </div>
-              )}
-
-              {/* Instructions */}
-              <div className="absolute bottom-4 right-4 text-white text-sm opacity-70">
-                Usa ← → o Espacio para navegar • Esc para cerrar
-              </div>
-            </div>
-          </div>
-        )}
+        <GalleryModal />
       </div>
     </div>
   )

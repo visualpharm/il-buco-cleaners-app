@@ -856,7 +856,7 @@ export default function LimpiezaPage() {
             datosActualizados[pasoActual] = {
               ...datosActualizados[pasoActual],
               horaCompletado: undefined, // Not completed yet
-              foto: fotoUrl || URL.createObjectURL(foto),
+              foto: fotoUrl, // Only use the uploaded URL, not blob URL
               validacionIA: validacion,
               tipoFoto,
               validationAttempts: newAttempts,
@@ -882,9 +882,9 @@ export default function LimpiezaPage() {
           });
         }
         
-        // Let the cleaner continue even if upload fails
-        // Use a local blob URL as fallback
-        fotoUrl = URL.createObjectURL(foto);
+        // Don't use blob URL as it won't persist
+        // Keep fotoUrl as undefined if upload failed
+        console.error('Photo upload failed, not saving blob URL');
         
         // Mark validation as failed when there's an error
         validacion = {
@@ -951,7 +951,7 @@ export default function LimpiezaPage() {
       ...datosActualizados[pasoActual],
       horaCompletado: ahora,
       tiempoTranscurrido,
-      foto: fotoUrl || (foto ? URL.createObjectURL(foto) : undefined), // Use uploaded URL if available
+      foto: fotoUrl, // Only use uploaded URL, not blob URL
       validacionIA: validacion,
       tipoFoto,
       validationAttempts: validacion ? validationAttempts : undefined,
@@ -1018,7 +1018,7 @@ export default function LimpiezaPage() {
       };
       setDatosLimpieza(datosActualizados);
       setFotoRequerida(null);
-      completarPaso();
+      // Don't call completarPaso() here - it should be called with a photo
     } else {
       console.error('Paso actual no encontrado en datosLimpieza');
     }
@@ -1439,19 +1439,29 @@ export default function LimpiezaPage() {
               )}
 
               {validacionActual && !esperandoCorreccion && (
-                <div className={`p-4 rounded-lg border-0 ${validacionActual.esValida ? "bg-green-100" : "bg-red-100"}`}>
-                  <div className="flex items-start">
-                    {validacionActual.esValida ? (
-                      <CheckCircle className="w-5 h-5 text-green-600 mr-2 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
-                    )}
-                    <div className="flex-1">
-                      <div className={`text-sm ${validacionActual.esValida ? "text-green-800" : "text-red-800"}`}>
-                        <div className="font-medium">{validacionActual.analisis.esperaba}</div>
+                <div className="space-y-3">
+                  <div className={`p-4 rounded-lg border-0 ${validacionActual.esValida ? "bg-green-100" : "bg-red-100"}`}>
+                    <div className="flex items-start">
+                      {validacionActual.esValida ? (
+                        <CheckCircle className="w-5 h-5 text-green-600 mr-2 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <div className={`text-sm ${validacionActual.esValida ? "text-green-800" : "text-red-800"}`}>
+                          <div className="font-medium">{validacionActual.analisis.esperaba}</div>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  {validacionActual.esValida && (
+                    <Button 
+                      onClick={() => completarPaso()} 
+                      className="w-full bg-green-600 text-white hover:bg-green-700"
+                    >
+                      Siguiente paso
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -1492,7 +1502,21 @@ export default function LimpiezaPage() {
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (file) {
-                            confirmarCorreccion()
+                            // Reset correction state but don't complete yet
+                            setEsperandoCorreccion(false)
+                            setSelectedPhotoPreview(null)
+                            
+                            // Update URL to remove correction state
+                            if (habitacionSeleccionada) {
+                              updateURL({
+                                room: roomToSlug(habitacionSeleccionada),
+                                step: pasoActual,
+                                session: sesionActual?.id || null,
+                                correction: null
+                              })
+                            }
+                            
+                            // Now validate the new photo
                             completarPaso(file)
                           }
                         }}
